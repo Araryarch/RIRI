@@ -370,7 +370,7 @@ export class Parser {
     }
 
     private parseAssignmentExpr(): Expression {
-        const left = this.parseComparisonExpr();
+        const left = this.parseLogicalOrExpr();
 
         if (this.at().type === TokenType.Equals) {
             this.eat(); // advance past equals
@@ -380,6 +380,31 @@ export class Parser {
 
         return left;
     }
+
+    private parseLogicalOrExpr(): Expression {
+        let left = this.parseLogicalAndExpr();
+
+        while (this.at().type === TokenType.Or) {
+            const operator = this.eat().value;
+            const right = this.parseLogicalAndExpr();
+            left = { kind: NodeType.BinaryExpression, left, right, operator } as BinaryExpression;
+        }
+
+        return left;
+    }
+
+    private parseLogicalAndExpr(): Expression {
+        let left = this.parseComparisonExpr();
+
+        while (this.at().type === TokenType.And) {
+            const operator = this.eat().value;
+            const right = this.parseComparisonExpr();
+            left = { kind: NodeType.BinaryExpression, left, right, operator } as BinaryExpression;
+        }
+
+        return left;
+    }
+
 
     private parseComparisonExpr(): Expression {
         let left = this.parseAdditiveExpr();

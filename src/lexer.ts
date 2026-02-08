@@ -92,6 +92,16 @@ export function tokenize(source: string): Token[] {
             cursor += 2;
             continue;
         }
+        if (twoChars === "&&") {
+            tokens.push({ type: TokenType.And, value: "&&", line });
+            cursor += 2;
+            continue;
+        }
+        if (twoChars === "||") {
+            tokens.push({ type: TokenType.Or, value: "||", line });
+            cursor += 2;
+            continue;
+        }
 
         // Single-char tokens
         switch (char) {

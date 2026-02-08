@@ -1,0 +1,44 @@
+// 02_flow.rr
+print("Test 02: Flow");
+let fail = 0;
+
+// IF
+let a = 10;
+if (a > 5) {
+    // OK
+} else {
+    print("FAIL: if logic"); fail = 1;
+}
+
+if (a < 5) {
+    print("FAIL: if logic 2"); fail = 1;
+} else {
+    // OK
+}
+
+// WHILE
+let i = 0;
+while (i < 5) {
+    i = i + 1;
+}
+if (i != 5) { print("FAIL: while loop"); fail = 1; }
+
+// FOR
+let sum = 0;
+for (let j=0; j<5; j=j+1) {
+    sum = sum + j;
+}
+// 0+1+2+3+4 = 10
+if (sum != 10) { print("FAIL: for loop"); fail = 1; }
+
+// Switch
+let opt = 2;
+let res = 0;
+switch (opt) {
+    case 1: { res = 10; break; }
+    case 2: { res = 20; break; }
+    default: { res = 0; }
+}
+if (res != 20) { print("FAIL: switch case"); fail = 1; }
+
+if (fail == 0) { print("ALL TESTS PASSED"); } else { print("FAIL"); }

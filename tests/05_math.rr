@@ -1,0 +1,21 @@
+// 05_math.rr
+print("Test 05: Math");
+let fail = 0;
+
+if (Math.abs(-5) != 5) { print("FAIL: abs"); fail = 1; }
+if (Math.max(10, 20) != 20) { print("FAIL: max"); fail = 1; }
+if (Math.min(10, 20) != 10) { print("FAIL: min"); fail = 1; }
+if (Math.pow(2, 3) != 8) { print("FAIL: pow"); fail = 1; }
+if (Math.sqrt(16) != 4) { print("FAIL: sqrt"); fail = 1; }
+
+let r = Math.random();
+if (r < 0 || r > 1) { print("FAIL: random range"); fail = 1; }
+
+// Sort
+let nums = [3, 1, 2];
+sort(nums);
+if (nums[0] != 1) { print("FAIL: sort 0"); fail = 1; }
+if (nums[1] != 2) { print("FAIL: sort 1"); fail = 1; }
+if (nums[2] != 3) { print("FAIL: sort 2"); fail = 1; }
+
+if (fail == 0) { print("ALL TESTS PASSED"); } else { print("FAIL"); }

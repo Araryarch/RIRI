@@ -1,0 +1,25 @@
+// 01_basics.rr
+print("Test 01: Basics");
+
+let fail = 0;
+
+// Variables
+let x = 10;
+if (x != 10) { print("FAIL: x != 10"); fail = 1; }
+
+let y = 20;
+let z = x + y;
+if (z != 30) { print("FAIL: 10+20 != 30"); fail = 1; }
+
+// Float
+let pi = 3.14;
+if (pi < 3.0) { print("FAIL: pi < 3.0"); fail = 1; }
+
+// Printing
+print("Hello World");
+
+if (fail == 0) {
+    print("ALL TESTS PASSED");
+} else {
+    print("FAIL");
+}

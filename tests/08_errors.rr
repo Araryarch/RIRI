@@ -1,0 +1,18 @@
+// 08_errors.rr
+print("Test 08: Errors");
+let fail = 0;
+
+let caught = 0;
+try {
+    // We don't have user throw yet, but we can try something that might throw in C++ if we are lucky?
+    // Actually, Riri doesn't throw much.
+    // Let's just verify syntax works and flow is correct.
+    caught = 0;
+} catch {
+    caught = 1;
+}
+
+// Just checking flow doesn't crash
+if (caught != 0) { print("FAIL: accidental catch"); fail = 1; }
+
+if (fail == 0) { print("ALL TESTS PASSED"); } else { print("FAIL"); }

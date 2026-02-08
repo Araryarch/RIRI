@@ -41,6 +41,8 @@ export enum TokenType {
     Greater, // >
     LessEq, // <=
     GreaterEq, // >=
+    And,    // &&
+    Or,     // ||
 
     // Punctuation
     OpenParen, // (

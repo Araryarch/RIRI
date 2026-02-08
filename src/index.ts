@@ -9,7 +9,7 @@ import { CodeGenerator } from './codegen';
 
 function main() {
     const args = process.argv.slice(2);
-    if (args.length < 2) {
+    if (args.length < 1) {
         printUsage();
         process.exit(1);
     }
@@ -17,7 +17,25 @@ function main() {
     const command = args[0];
     const filePath = args[1];
 
-    if (command !== 'run' && command !== 'build' && command !== 'show') {
+    if (command === 'test') {
+        const { runTests } = require('./testing');
+        // Optional second arg could be specific dir
+        const targetDir = args[1] || "tests";
+        runTests(targetDir);
+        return;
+    }
+
+    if (command === '--help' || command === '-h') {
+        printUsage();
+        process.exit(0);
+    }
+
+    if (command === '--version' || command === '-v') {
+        console.log("RiriLang v1.0.0");
+        process.exit(0);
+    }
+
+    if (command !== 'run' && command !== 'build' && command !== 'show' && command !== 'test') {
         console.error("Unknown command:", command);
         printUsage();
         process.exit(1);

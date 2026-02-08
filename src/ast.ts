@@ -173,3 +173,9 @@ export interface AwaitExpression extends Expression {
     kind: NodeType.AwaitExpression;
     argument: Expression;
 }
+
+export interface UnaryExpression extends Expression {
+    kind: NodeType.UnaryExpression;
+    operator: string;
+    argument: Expression;
+}

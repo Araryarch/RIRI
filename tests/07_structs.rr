@@ -1,0 +1,22 @@
+// 07_structs.rr
+print("Test 07: Structs");
+let fail = 0;
+
+// Heap
+let h = new Heap();
+h.push(10);
+h.push(30);
+h.push(20);
+
+// Max heap: 30, 20, 10
+if (h.pop() != 30) { print("FAIL: heap pop 1"); fail = 1; }
+if (h.pop() != 20) { print("FAIL: heap pop 2"); fail = 1; }
+if (h.pop() != 10) { print("FAIL: heap pop 3"); fail = 1; }
+
+// BST
+let b = new BST();
+b.insert(50);
+if (b.search(50) == 0) { print("FAIL: BST search found"); fail = 1; }
+if (b.search(99) == 1) { print("FAIL: BST search not found"); fail = 1; }
+
+if (fail == 0) { print("ALL TESTS PASSED"); } else { print("FAIL"); }
