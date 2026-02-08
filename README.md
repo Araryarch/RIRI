@@ -60,17 +60,17 @@ rrc build examples/hello.rr
 let pi = 3.14159;
 let r = 10;
 let area = pi * Math.pow(r, 2);
-console.log(area);
+print(area);
 ```
 
 ### Control Flow
 ```javascript
 if (area > 100) {
-    console.log("Big circle!");
+    print("Big circle!");
 }
 
 let arr = [1, 2, 3];
-console.log(arr[0]); // Arrays use C++ vectors
+print(arr[0]); // Arrays use C++ vectors
 ```
 
 ### Classes (OOP)
@@ -78,7 +78,7 @@ console.log(arr[0]); // Arrays use C++ vectors
 class Dog {
     let name = "Puppy";
     func bark() {
-        console.log("Woof!");
+        print("Woof!");
     }
 }
 let d = new Dog();
@@ -100,7 +100,7 @@ tree.printInOrder();
 let pq = new Heap();
 pq.push(100);
 pq.push(10);
-console.log(pq.pop()); // 100
+print(pq.pop()); // 100
 ```
 
 ### Control Flow
@@ -155,15 +155,27 @@ tprint(users);
 +----------------+
 | 0     | Alice  |
 | 1     | Bob    |
+| 1     | Bob  |
 ...
 */
 ```
 
-## 📂 Examples
-Check out the `examples/` folder for more:
-- `examples/full_docs.rr`: **Complete documentation** covering all features.
-- `examples/tree_test.rr`: Demo of Tree data structures.
-- `examples/oop_test.rr`: Demo of Class usage.
+## Documentation 📚
+-   [Installation & Setup](docs/installation.md) *(coming soon)*
+-   [Standard Library](docs/stdlib.md)
+-   [Object Oriented Programming](docs/oop.md)
+-   [Memory Management (ARC)](docs/memory.md)
+-   [Regular Expressions](docs/regex.md)
+-   [Graph Algorithms](docs/graph.md)
+-   [Qt GUI Development](docs/qt.md)
+
+## Examples
+Check the `examples/` directory for simple samples:
+-   `examples/hello.rr`: Basic syntax.
+-   `examples/qt_dom.rr`: Small GUI demo.
+
+Full Apps in `tests/`:
+-   `tests/16_qt_calculator.rr`: **Simple Calculator App** (DOM Syntax).
 
 ## 📚 API Reference
 

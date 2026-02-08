@@ -4,64 +4,64 @@
 
 // 1. Variables & Types
 // --------------------
-console.log("--- 1. Variables ---");
+print("--- 1. Variables ---");
 let x = 10;                 // Integer
 let pi = 3.14159;           // Float
 let name = "Riri";          // String
 let isActive = 1;           // Boolean (1=true, 0=false)
 
-console.log("Integer:", x);
-console.log("Float:", pi);
-console.log("String:", name);
+print("Integer:", x);
+print("Float:", pi);
+print("String:", name);
 
 // 2. Control Flow
 // ---------------
-console.log("\n--- 2. Control Flow ---");
+print("\n--- 2. Control Flow ---");
 
 // If-Else
 if (x > 5) {
-    console.log("x is > 5");
+    print("x is > 5");
 } else {
-    console.log("x is <= 5");
+    print("x is <= 5");
 }
 
 // Loops
-console.log("Looping:");
+print("Looping:");
 for (let i = 0; i < 3; i = i + 1) {
-    console.log("i =", i);
+    print("i =", i);
 }
 
 // Switch
 let opt = 1;
 switch (opt) {
-    case 1: { console.log("Selected Option 1"); break; }
-    case 2: { console.log("Selected Option 2"); break; }
-    default: { console.log("Default Option"); }
+    case 1: { print("Selected Option 1"); break; }
+    case 2: { print("Selected Option 2"); break; }
+    default: { print("Default Option"); }
 }
 
 // 3. Functions
 // ------------
-console.log("\n--- 3. Functions ---");
+print("\n--- 3. Functions ---");
 func add(a, b) {
     return a + b;
 }
-console.log("add(5, 10) =", add(5, 10));
+print("add(5, 10) =", add(5, 10));
 
 // Recursion (Factorial)
 func factorial(n) {
     if (n <= 1) { return 1; }
     return n * factorial(n - 1);
 }
-console.log("factorial(5) =", factorial(5));
+print("factorial(5) =", factorial(5));
 
 // 4. Arrays
 // ---------
-console.log("\n--- 4. Arrays ---");
+print("\n--- 4. Arrays ---");
 let arr = [10, 20, 30];
 arr.push(40);
-console.log("Array size:", arr.size());
+print("Array size:", arr.size());
 // Table Print
-console.log("Table View:");
+print("Table View:");
 tprint(arr);
 
 // Sorting
@@ -74,16 +74,16 @@ tprint(nums);
 
 // 5. Math Library
 // ---------------
-console.log("\n--- 5. Math ---");
-console.log("Abs(-10):", Math.abs(-10));
-console.log("Max(5, 9):", Math.max(5, 9));
-console.log("Pow(2, 3):", Math.pow(2, 3));
-console.log("Sqrt(16):", Math.sqrt(16));
-console.log("Random:", Math.random());
+print("\n--- 5. Math ---");
+print("Abs(-10):", Math.abs(-10));
+print("Max(5, 9):", Math.max(5, 9));
+print("Pow(2, 3):", Math.pow(2, 3));
+print("Sqrt(16):", Math.sqrt(16));
+print("Random:", Math.random());
 
 // 6. Object Oriented Programming
 // ------------------------------
-console.log("\n--- 6. OOP ---");
+print("\n--- 6. OOP ---");
 class User {
     let name = "";
     let age = 0;
@@ -104,7 +104,7 @@ u.greet();
 
 // 7. Error Handling
 // -----------------
-console.log("\n--- 7. Error Handling ---");
+print("\n--- 7. Error Handling ---");
 try {
     print("Trying risky operation...");
     // Future: throw "error";
@@ -115,7 +115,7 @@ try {
 
 // 8. Async & Networking
 // ---------------------
-console.log("\n--- 8. Async & Fetch ---");
+print("\n--- 8. Async & Fetch ---");
 async fn fetchData() {
     print("Fetching data from dummyjson...");
     // Blocking fetch for now
@@ -127,18 +127,18 @@ fetchData();
 
 // 9. Built-in Data Structures
 // ---------------------------
-console.log("\n--- 9. Data Structures ---");
+print("\n--- 9. Data Structures ---");
 
 // AVL Tree
-console.log("[AVL Tree]");
+print("[AVL Tree]");
 let avl = new AVL();
 avl.insert(10); avl.insert(20); avl.insert(5);
 avl.printInOrder();
 
 // Max Heap
-console.log("[Max Heap]");
+print("[Max Heap]");
 let heap = new Heap();
 heap.push(5); heap.push(10); heap.push(1);
-console.log("Top:", heap.top()); // 10
-console.log("Pop:", heap.pop()); // 10 removed
-console.log("Top:", heap.top()); // 5
+print("Top:", heap.top()); // 10
+print("Pop:", heap.pop()); // 10 removed
+print("Top:", heap.top()); // 5

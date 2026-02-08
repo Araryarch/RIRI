@@ -26,6 +26,7 @@ import {
     TryStatement,
     AwaitExpression,
     UnaryExpression,
+    ArrowFunctionExpression,
     NodeType
 } from "./ast";
 import { Token, TokenType } from "./tokens";
@@ -159,9 +160,13 @@ export class Parser {
     }
 
     private parseReturnStatement(): Statement {
-        this.eat(); // eat 'return'
+        this.eat(); // eat return
+        if (this.at().type == TokenType.SemiColon) {
+            this.eat();
+            return { kind: NodeType.ReturnStatement, value: undefined } as ReturnStatement;
+        }
         const value = this.parseExpression();
-        this.expect(TokenType.SemiColon, "Expected semicolon after return statement.");
+        this.expect(TokenType.SemiColon, "Expected ; after return statement");
         return { kind: NodeType.ReturnStatement, value } as ReturnStatement;
     }
 
@@ -332,28 +337,73 @@ export class Parser {
 
     private parseClassDeclaration(): Statement {
         this.eat(); // eat class
-        const name = this.expect(TokenType.Identifier, "Expected class name.").value;
-        this.expect(TokenType.OpenBrace, "Expected open brace after class name.");
+        const name = this.expect(TokenType.Identifier, "Expected class name following class keyword.").value;
+        this.expect(TokenType.OpenBrace, "Expected class body following name.");
 
         const methods: FunctionDeclaration[] = [];
         const fields: VariableDeclaration[] = [];
 
         while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
+            // Optional 'let' or 'func' keyword?
+            // Riri style: fields use 'let', methods use 'func'?
+            // Or just names?
+            // Test 06 uses `let count = 0;` and `func inc()`.
+
+            if (this.at().type === TokenType.Let) {
+                this.eat(); // consume let
+            }
+            // If func keyword?
+            // Tests use `func inc()`.
+            // So we might see `func`.
+            // But usually parseFunctionDeclaration handles func?
+            // Here we are inside class body.
+
             if (this.at().type === TokenType.Func) {
-                const func = this.parseFunctionDeclaration() as FunctionDeclaration;
-                methods.push(func);
-            } else if (this.at().type === TokenType.Let) {
-                const field = this.parseVarDeclaration() as VariableDeclaration;
-                fields.push(field);
+                // It's a method
+                // But logic below expects memberName first? 
+                // Wait, logic below: `const memberName = this.expect(TokenType.Identifier, ...).value;`
+                // If `func inc()`, this.at() is `Fn`. Expect `Identifier` fails.
+
+                // So we must handle `func` keyword too?
+                this.eat(); // consume func
+            }
+
+            const memberName = this.expect(TokenType.Identifier, "Expected member name").value;
+
+            if (this.at().type == TokenType.OpenParen) {
+                // Method (shorthand `name() {}`)
+                // Parse params manually as parseArgs() parses Expressions, not Identifiers for definition.
+                this.eat(); // (
+                const params: string[] = [];
+                if (this.at().type !== TokenType.CloseParen) {
+                    params.push(this.expect(TokenType.Identifier, "Expected param name").value);
+                    while (this.at().type == TokenType.Comma && this.eat()) {
+                        params.push(this.expect(TokenType.Identifier, "Expected param name").value);
+                    }
+                }
+                this.expect(TokenType.CloseParen, "Expected ) after params");
+
+                this.expect(TokenType.OpenBrace, "Expected { for method body");
+                const body: Statement[] = [];
+                while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
+                    body.push(this.parseStatement());
+                }
+                this.expect(TokenType.CloseBrace, "Expected } after method body");
+
+                methods.push({ kind: NodeType.FunctionDeclaration, name: memberName, params, body, async: false } as FunctionDeclaration);
             } else {
-                // Allow raw identifiers as fields? simpler to enforce 'let' for now or just 'identifier;'?
-                // Let's stick to 'let' for fields to be consistent with var decl, or just identifier.
-                // For C++ mapping, fields are usually 'Type name;'. In Riri, 'let x = 1;'
-                // Let's stick to 'let' for now.
-                this.eat(); // Skip unknown token to avoid infinite loop if error
+                // Field
+                let value: Expression | undefined;
+                if (this.at().type == TokenType.Equals) {
+                    this.eat();
+                    value = this.parseExpression();
+                }
+                this.expect(TokenType.SemiColon, "Expected ; after field declaration");
+                fields.push({ kind: NodeType.VariableDeclaration, identifier: memberName, value } as VariableDeclaration);
             }
         }
-        this.expect(TokenType.CloseBrace, "Expected closing brace for class declaration.");
+
+        this.expect(TokenType.CloseBrace, "Expected closing brace inside class declaration");
         return { kind: NodeType.ClassDeclaration, name, methods, fields } as ClassDeclaration;
     }
 
@@ -372,10 +422,10 @@ export class Parser {
     private parseAssignmentExpr(): Expression {
         const left = this.parseLogicalOrExpr();
 
-        if (this.at().type === TokenType.Equals) {
+        if (this.at().type == TokenType.Equals) {
             this.eat(); // advance past equals
             const value = this.parseAssignmentExpr();
-            return { value: value, assigne: left, kind: NodeType.BinaryExpression, left, right: value, operator: "=" } as BinaryExpression;
+            return { value, assignee: left, kind: NodeType.AssignmentExpression } as AssignmentExpression;
         }
 
         return left;
@@ -570,10 +620,81 @@ export class Parser {
             case TokenType.String:
                 return { kind: NodeType.StringLiteral, value: this.eat().value } as StringLiteral;
             case TokenType.OpenParen: {
-                this.eat(); // eat the opening paren
-                const value = this.parseExpression();
-                this.expect(TokenType.CloseParen, "Unexpected token found.");
-                return value;
+                this.eat(); // eat (
+                // We need to tentatively parse as arguments if we see ')' and '=>' later.
+                // Or standard expression.
+                // Since we don't have comma operator, a list of expressions "a, b" is INVALID as a standard expression.
+                // So if we find commas, it MUST be an arrow function arguments list (or tuple, but we don't have tuples).
+                // If no commas, "a", it could be "(a)" (grouped expr) OR "(a) => ..." (arrow arg).
+
+                // Let's try to parse arguments list logic.
+                // But `parseArgumentsList` expects assignments.
+                // An argument list for definition is usually Identifiers?
+                // `(a, b) => ...`. `a` and `b` must be identifiers.
+                // `(1) => ...` is invalid.
+
+                // Strategy:
+                // 1. Parse a list of expressions (comma separated).
+                // 2. Check for `)`.
+                // 3. Check for `=>`.
+                // 4. If `=>` is present, verify all expressions are identifiers. If so, return ArrowFunction.
+                // 5. If `=>` is NOT present:
+                //    a. If more than 1 expression, Error (no comma operator).
+                //    b. If 0 expressions `()`, Error? `()` is void? Arrow `() => ...` is valid.
+                //    c. If 1 expression, return it as parenthesized expression.
+
+                const exprs: Expression[] = [];
+                if (this.at().type !== TokenType.CloseParen) {
+                    exprs.push(this.parseExpression());
+                    while (this.at().type === TokenType.Comma) {
+                        this.eat();
+                        exprs.push(this.parseExpression());
+                    }
+                }
+
+                this.expect(TokenType.CloseParen, "Expected ) after parenthesized expression or arguments.");
+
+                if (this.at().type === TokenType.Arrow) {
+                    this.eat(); // eat =>
+
+                    // Verify params are identifiers
+                    const params: string[] = [];
+                    for (const e of exprs) {
+                        if (e.kind !== NodeType.Identifier) {
+                            throw new Error("Arrow function parameters must be identifiers.");
+                        }
+                        params.push((e as Identifier).symbol);
+                    }
+
+                    // Parse body
+                    // Body can be Block `{ ... }` or Expression.
+                    let body: Statement[] = [];
+                    if (this.at().type === TokenType.OpenBrace) {
+                        this.eat(); // eat {
+                        while (this.at().type !== TokenType.CloseBrace && this.at().type !== TokenType.EOF) {
+                            body.push(this.parseStatement());
+                        }
+                        this.expect(TokenType.CloseBrace, "Expected } after arrow function body.");
+                    } else {
+                        // Expression body `=> x + 1` -> `{ return x + 1; }`
+                        const expr = this.parseExpression();
+                        body.push({ kind: NodeType.ReturnStatement, value: expr } as ReturnStatement);
+                        // Optional semicolon? Expression might be part of assignment `let x = ...;`
+                        // so we don't consume semicolon here usually.
+                    }
+
+                    return { kind: NodeType.ArrowFunctionExpression, params, body } as ArrowFunctionExpression;
+                }
+
+                // Not an arrow function.
+                if (exprs.length === 0) {
+                    throw new Error("Empty parenthesized expression '()' is not allowed unless it is an arrow function.");
+                }
+                if (exprs.length > 1) {
+                    throw new Error("Comma operator (tuples) is not supported. Did you mean an arrow function? Missing '=>'.");
+                }
+
+                return exprs[0];
             }
             case TokenType.This:
                 this.eat();

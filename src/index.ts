@@ -64,8 +64,7 @@ function main() {
     try {
         // 1. Tokenize
         const tokens = tokenize(input);
-
-        // 2. Parse
+        // console.log("Tokens:", tokens); // too verbose
 
         // 2. Parse
         const parser = new Parser(tokens);
@@ -127,8 +126,9 @@ function main() {
         // Or better, update imports in index.ts to include NodeType.
         resolveImports(program, path.dirname(path.resolve(filePath)));
 
-        // 3. Codegen
-        const generator = new CodeGenerator(program);
+        // 130. Codegen
+        const useQt = args.includes("--qt");
+        const generator = new CodeGenerator(program, { qt: useQt });
         const cCode = generator.generate();
 
         // 4. Handle Commands
@@ -145,12 +145,33 @@ function main() {
         fs.writeFileSync(cppFilePath, cCode);
 
         // 6. Compile with G++ (C++20)
+        let qtFlags = "";
+        if (args.includes("--qt")) {
+            try {
+                // Try pkg-config for Qt6 explicitly since we verified it exists
+                qtFlags = execSync('pkg-config --cflags --libs Qt6Widgets Qt6Core Qt6Gui', { stdio: 'pipe' }).toString().trim();
+                console.log("Qt Flags:", qtFlags);
+                console.log("Linking against Qt...");
+            } catch (e) {
+                console.warn("⚠️  Warning: pkg-config failed to find Qt libraries. Compilation might fail.");
+            }
+        }
+
         try {
-            execSync(`g++ -std=c++20 "${cppFilePath}" -o "${exePath}"`, { stdio: 'inherit' });
+            // Compile command
+            // Add -I src/include for httplib.h
+            // Add -lpthread for httplib
+            const compileCmd = `g++ -std=c++20 -O3 -I src/include "${cppFilePath}" -o "${exePath}" -lpthread ${qtFlags}`;
+            console.log(`Compiling: ${compileCmd}`);
+            execSync(compileCmd, { stdio: 'inherit' });
         } catch (e) {
             console.error("Compilation failed.");
             // Only cleanup if it's a temp run
-            if (command === 'run') cleanup(cppFilePath, exePath);
+            const isRun = command === 'run';
+            if (isRun) {
+                if (fs.existsSync(cppFilePath)) fs.unlinkSync(cppFilePath);
+                if (fs.existsSync(exePath)) fs.unlinkSync(exePath);
+            }
             process.exit(1);
         }
 
@@ -161,7 +182,8 @@ function main() {
             } catch (e) {
                 console.error("Execution failed.");
             }
-            cleanup(cppFilePath, exePath);
+            if (fs.existsSync(cppFilePath)) fs.unlinkSync(cppFilePath);
+            if (fs.existsSync(exePath)) fs.unlinkSync(exePath);
         } else if (command === 'build') {
             console.log(`Build successful: ${exePath}`);
             // Keep exe, delete cpp
@@ -176,9 +198,10 @@ function main() {
 
 function printUsage() {
     console.log("Usage:");
-    console.log("  rrc run <file.rr>   - Compile and run");
-    console.log("  rrc build <file.rr> - Compile to executable");
-    console.log("  rrc show <file.rr>  - Show transpiled C++ code");
+    console.log("  rrc run <file.rr> [--qt]   - Compile and run (with Qt support)");
+    console.log("  rrc build <file.rr> [--qt] - Compile to executable");
+    console.log("  rrc show <file.rr>         - Show transpiled C++ code");
+    console.log("  rrc test [dir]             - Run tests");
 }
 
 function cleanup(cFile: string, exeFile: string) {

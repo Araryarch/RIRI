@@ -1,30 +1,33 @@
-
 export enum NodeType {
-    Program,
-    VariableDeclaration,
-    FunctionDeclaration,
-    ClassDeclaration,
-    ImportDeclaration,
-    ReturnStatement,
-    IfStatement,
-    WhileStatement,
-    ForStatement,
-    SwitchStatement,
-    BreakStatement,
-    ExpressionStatement,
+    // Statements
+    Program = "Program",
+    VariableDeclaration = "VariableDeclaration",
+    FunctionDeclaration = "FunctionDeclaration",
+    ClassDeclaration = "ClassDeclaration",
+    ImportDeclaration = "ImportDeclaration",
+    ReturnStatement = "ReturnStatement",
+    IfStatement = "IfStatement",
+    WhileStatement = "WhileStatement",
+    ForStatement = "ForStatement",
+    SwitchStatement = "SwitchStatement",
+    BreakStatement = "BreakStatement",
+    ExpressionStatement = "ExpressionStatement",
+    TryStatement = "TryStatement",
 
-    BinaryExpression,
-    CallExpression,
-    MemberExpression, // obj.prop
-    NewExpression, // new Class()
-    ArrayLiteral, // [1, 2]
-
-    Identifier,
-    NumericLiteral,
-    StringLiteral,
-    ThisExpression,
-    TryStatement,
-    AwaitExpression
+    // Expressions
+    AssignmentExpression = "AssignmentExpression",
+    BinaryExpression = "BinaryExpression",
+    CallExpression = "CallExpression",
+    MemberExpression = "MemberExpression", // obj.prop
+    NewExpression = "NewExpression", // new Class()
+    ArrayLiteral = "ArrayLiteral", // [1, 2]
+    Identifier = "Identifier",
+    NumericLiteral = "NumericLiteral",
+    StringLiteral = "StringLiteral",
+    ThisExpression = "ThisExpression",
+    AwaitExpression = "AwaitExpression",
+    UnaryExpression = "UnaryExpression",
+    ArrowFunctionExpression = "ArrowFunctionExpression"
 }
 
 export interface Statement {
@@ -89,6 +92,12 @@ export interface ForStatement extends Statement {
 }
 
 export interface Expression extends Statement { }
+
+export interface AssignmentExpression extends Expression {
+    kind: NodeType.AssignmentExpression;
+    assignee: Expression;
+    value: Expression;
+}
 
 export interface BinaryExpression extends Expression {
     kind: NodeType.BinaryExpression;

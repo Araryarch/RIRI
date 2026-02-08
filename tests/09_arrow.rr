@@ -1,0 +1,45 @@
+// 09_arrow.rr
+print("Test 09: Arrow Functions & tprint");
+
+let fail = 0;
+
+// Arrow Function
+let add = (a, b) => {
+    return a + b;
+};
+
+// fn keyword
+fn subtract(a, b) {
+    return a - b;
+}
+
+if (subtract(10, 5) != 5) {
+    print("FAIL: fn subtract(10, 5) != 5");
+    fail = 1;
+}
+
+if (add(10, 20) != 30) {
+    print("FAIL: Arrow function add(10, 20) != 30");
+    fail = 1;
+}
+
+// Expression body arrow (if supported by parser, currently parser forces block or return stmt wrapper)
+// The parser implementation wraps expression in return stmt if no braces.
+let sq = (x) => x * x;
+
+if (sq(5) != 25) {
+    print("FAIL: Arrow function sq(5) != 25");
+    fail = 1;
+}
+
+// tprint / console.table
+let arr = [10, 20, 30];
+print("Printing table:");
+tprint(arr);
+console.table(arr); // Alias check
+
+if (fail == 0) {
+    print("ALL TESTS PASSED");
+} else {
+    print("FAIL");
+}

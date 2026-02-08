@@ -1,0 +1,64 @@
+// Qt DOM Example
+// Run with: rrc run examples/qt_dom.rr --qt
+
+print("Starting Qt DOM App...");
+
+// Setup Application
+let argc = 0;
+let app = new QApplication(argc, nullptr);
+
+// Document Factory
+let document = new Document();
+
+// Create Main Window (div or special 'window' tag)
+let root = document.createElement("window");
+root.setAttribute("title", "Riri DOM App");
+root.setAttribute("style", "background-color: #f0f0f0;");
+
+// Create Label
+let header = document.createElement("label");
+header.setAttribute("text", "Hello from DOM!");
+header.setAttribute("style", "font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px;");
+root.appendChild(header);
+
+// Create Input
+let input = document.createElement("input");
+input.setAttribute("text", "Type here...");
+root.appendChild(input);
+
+// Create Button Container (Horizontal)
+let btnGroup = document.createElement("span"); 
+// 'span' uses QHBoxLayout by implementation default
+
+let btn1 = document.createElement("button");
+btn1.setAttribute("text", "Click Me");
+btn1.setAttribute("style", "background-color: #007bff; color: white; padding: 5px;");
+
+// Event Listener
+btn1.addEventListener("click", () => {
+    print("Button Clicked!");
+    // We can't access 'input.value' easily in generic way yet unless getAttribute("text") reads it?
+    // Using setAttribute to feedback
+    header.setAttribute("text", "Clicked!");
+});
+
+let btn2 = document.createElement("button");
+btn2.setAttribute("text", "Close");
+btn2.addEventListener("click", () => {
+    // How to quit?
+    // app.quit(); // If exposed
+    // or just exit
+    // exit(0);
+    header.setAttribute("text", "Closing...");
+});
+
+btnGroup.appendChild(btn1);
+btnGroup.appendChild(btn2);
+
+root.appendChild(btnGroup);
+
+// Show the window
+root.show();
+
+print("Running...");
+app.exec();

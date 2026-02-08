@@ -13,7 +13,7 @@ if (arr.size() != 2) { print("FAIL: array pop size"); fail = 1; }
 // Strings
 let s = "hello";
 s = s + " world";
-if (s.length() != 11) { print("FAIL: string length"); fail = 1; }
+if (s.length != 11) { print("FAIL: string length"); fail = 1; }
 if (s.substr(0, 5) != "hello") { print("FAIL: substr"); fail = 1; }
 
 if (fail == 0) { print("ALL TESTS PASSED"); } else { print("FAIL"); }

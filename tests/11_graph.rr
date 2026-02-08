@@ -1,0 +1,85 @@
+// 11_graph.rr
+print("Test 11: Graph Algorithms");
+
+let fail = 0;
+
+let g = new Graph();
+
+// Add edges for a simple graph
+// 0 -> 1 (4)
+// 0 -> 2 (2)
+// 1 -> 3 (3)
+// 2 -> 1 (1)
+// 2 -> 3 (5)
+// 3 -> 4 (2)
+
+g.add_edge(0, 1, 4);
+g.add_edge(0, 2, 2);
+g.add_edge(1, 3, 3);
+g.add_edge(2, 1, 1);
+g.add_edge(2, 3, 5);
+g.add_edge(3, 4, 2);
+
+// Set positions for A* (heuristic)
+// 0: (0,0), 4: (10,10) ... roughly
+g.set_pos(0, 0, 0);
+g.set_pos(1, 2, 2);
+g.set_pos(2, 2, 0);
+g.set_pos(3, 5, 5);
+g.set_pos(4, 10, 10);
+
+// --- BFS ---
+print("Testing BFS(0)...");
+let bfs_path = g.bfs(0);
+tprint(bfs_path);
+// BFS from 0: 0 -> 1, 2. Then from 1->3, from 2->1(vis), 3(vis). Then from 3->4.
+// Expected order (approx depending on map iteration): 0, 1, 2, 3, 4 (or 0, 2, 1, ...)
+if (bfs_path.size() != 5) {
+    print("FAIL: BFS size mismatch");
+    fail = 1;
+}
+
+// --- DFS ---
+print("Testing DFS(0)...");
+let dfs_path = g.dfs(0);
+tprint(dfs_path);
+if (dfs_path.size() != 5) {
+    print("FAIL: DFS size mismatch");
+    fail = 1;
+}
+
+// --- Dijkstra ---
+print("Testing Dijkstra(0, 4)...");
+// Shortest path:
+// 0->2 (2)
+// 2->1 (1)
+// 1->3 (3)
+// 3->4 (2)
+// Total: 2 + 1 + 3 + 2 = 8
+// Path: 0, 2, 1, 3, 4
+
+let dij_path = g.dijkstra(0, 4);
+tprint(dij_path);
+
+if (dij_path.size() != 5) {
+    print("FAIL: Dijkstra shortest path length mismatch");
+    fail = 1;
+}
+if (dij_path.at(0) != 0) { fail = 1; print("FAIL: Start node"); }
+if (dij_path.at(4) != 4) { fail = 1; print("FAIL: End node"); }
+
+// --- A* ---
+print("Testing A*(0, 4)...");
+// Should find same optimal path or valid path
+let astar_path = g.astar(0, 4);
+tprint(astar_path);
+if (astar_path.size() < 2) {
+    print("FAIL: A* found no path");
+    fail = 1;
+}
+
+if (fail == 0) {
+    print("ALL TESTS PASSED");
+} else {
+    print("FAIL");
+}

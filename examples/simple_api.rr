@@ -1,0 +1,42 @@
+
+// RiriLang API Example (Express-style)
+// Run: rrc run examples/simple_api.rr
+
+print("Starting API Server...");
+let app = new Server();
+
+// Middleware
+// app.use((req, res, next) => {
+//    print("LOG: Request to " + req.path);
+//    // next(); // Implicit in httplib logic (Unhandled)
+// });
+
+// Basic Route
+app.get("/", (req, res) => {
+    res.send("Hello from RiriLang API!");
+});
+
+// JSON Route
+app.get("/api/status", (req, res) => {
+    // Manually constructing JSON string for now until JSON object support
+    res.json("{\"status\": \"ok\", \"uptime\": 100}");
+});
+
+// Route Params
+app.get("/user/:id", (req, res) => {
+    let id = req.params["id"];
+    res.send("User ID: " + id);
+});
+
+// Query Params
+app.get("/search", (req, res) => {
+    if (req.query.count("q")) {
+        let q = req.query["q"];
+        res.send("Searching for: " + q);
+    } else {
+        res.send("No query provided");
+    }
+});
+
+print("Server listening on port 8080...");
+app.listen(8080);

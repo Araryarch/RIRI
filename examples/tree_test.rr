@@ -1,16 +1,16 @@
-console.log("--- BST Test ---");
+print("--- BST Test ---");
 let bst = new BST();
 bst.insert(10);
 bst.insert(5);
 bst.insert(15);
 bst.printInOrder();
 if (bst.search(5)) {
-    console.log("Found 5");
+    print("Found 5");
 } else {
-    console.log("5 not found");
+    print("5 not found");
 }
 
-console.log("--- AVL Test ---");
+print("--- AVL Test ---");
 let avl = new AVL();
 avl.insert(10);
 avl.insert(20);
@@ -20,7 +20,7 @@ avl.insert(50);
 avl.insert(25);
 avl.printInOrder();
 
-console.log("--- Heap Test ---");
+print("--- Heap Test ---");
 let heap = new Heap();
 heap.push(3);
 heap.push(2);
@@ -29,9 +29,9 @@ heap.push(5);
 heap.push(4);
 heap.push(45);
 
-console.log("Heap Top:");
-console.log(heap.top());
-console.log("Pop Heap:");
-console.log(heap.pop());
-console.log("New Top:");
-console.log(heap.top());
+print("Heap Top:");
+print(heap.top());
+print("Pop Heap:");
+print(heap.pop());
+print("New Top:");
+print(heap.top());

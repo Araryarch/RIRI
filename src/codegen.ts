@@ -14,6 +14,7 @@ import {
     IfStatement,
     WhileStatement,
     ForStatement,
+    AssignmentExpression,
     ExpressionStatement,
     ClassDeclaration,
     NewExpression,
@@ -25,18 +26,138 @@ import {
     TryStatement,
     AwaitExpression,
     UnaryExpression,
+    ArrowFunctionExpression,
     NodeType
 } from "./ast";
 
 export class CodeGenerator {
     private program: Program;
+    private options: { qt?: boolean };
 
-    constructor(program: Program) {
+    constructor(program: Program, options: { qt?: boolean } = {}) {
         this.program = program;
+        this.options = options;
     }
 
     public generate(): string {
-        let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n#include <cstdlib>\n#include <ctime>\n\n";
+        let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n#include <cstdlib>\n#include <ctime>\n#include <stdexcept>\n#include <queue>\n#include <stack>\n#include <map>\n#include <unordered_map>\n#include <set>\n#include <regex>\n#include <memory>\n#include \"httplib.h\"\n";
+
+        if (this.options.qt) {
+            cppCode += "#include <QApplication>\n#include <QPushButton>\n#include <QLabel>\n#include <QVBoxLayout>\n#include <QWidget>\n#include <QLineEdit>\n";
+            cppCode += `
+void qt_connect(std::shared_ptr<QPushButton> btn, std::string signal, std::function<void()> callback) {
+    if (signal == "clicked" && btn) {
+        QObject::connect(btn.get(), &QPushButton::clicked, callback);
+    }
+}
+// Helper macros and includes for Qt DOM
+QString qt_str(std::string s) { return QString::fromStdString(s); }
+std::string qt_to_std(QString s) { return s.toStdString(); }
+template<typename T>
+T* qt_raw(std::shared_ptr<T> p) { return p.get(); }
+
+// --- DOM Implementation ---
+
+// Base wrapper for any Qt element
+struct QtElement {
+    std::shared_ptr<QWidget> widget;
+    std::shared_ptr<QLayout> layout; // Optional layout if it's a container
+    std::string tagName;
+
+    QtElement(std::string tag) : tagName(tag) {}
+
+    void setAttribute(std::string key, std::string value) {
+        if (!widget) return;
+        if (key == "text") {
+            // Check type and set text
+            auto btn = std::dynamic_pointer_cast<QPushButton>(widget);
+            if (btn) btn->setText(QString::fromStdString(value));
+            auto lbl = std::dynamic_pointer_cast<QLabel>(widget);
+            if (lbl) lbl->setText(QString::fromStdString(value));
+            auto inp = std::dynamic_pointer_cast<QLineEdit>(widget);
+            if (inp) inp->setText(QString::fromStdString(value));
+            auto win = std::dynamic_pointer_cast<QWidget>(widget);
+            if (win) win->setWindowTitle(QString::fromStdString(value)); // 'text' on generic widget sets title? Or introduce 'title' attr?
+        }
+        if (key == "title") {
+             widget->setWindowTitle(QString::fromStdString(value));
+        }
+        if (key == "style") {
+            widget->setStyleSheet(QString::fromStdString(value));
+        }
+    }
+
+    void addEventListener(std::string event, std::function<void()> callback) {
+        if (!widget) return;
+        if (event == "click") {
+            auto btn = std::dynamic_pointer_cast<QPushButton>(widget);
+            if (btn) QObject::connect(btn.get(), &QPushButton::clicked, callback);
+        }
+        // Add more events as needed
+    }
+
+    void appendChild(std::shared_ptr<QtElement> child) {
+        if (!widget || !child || !child->widget) return;
+        
+        // If this element has a layout, add child to layout
+        if (layout) {
+            layout->addWidget(child->widget.get());
+        } else {
+            // If no layout, simply set parent (absolute positioning or non-container)
+            // But usually we want layout. 
+            // If it's a "div" without layout initialized? 
+            // We initialize layout lazily or in constructor.
+            child->widget->setParent(widget.get());
+            child->widget->show(); // Ensure visibility
+        }
+    }
+
+    void show() {
+        if (widget) widget->show();
+    }
+};
+
+struct Document {
+    std::shared_ptr<QtElement> createElement(std::string tag) {
+        auto el = std::make_shared<QtElement>(tag);
+        
+        if (tag == "div") {
+            auto w = std::make_shared<QWidget>();
+            el->widget = w;
+            el->layout = std::make_shared<QVBoxLayout>(w.get()); // Default vertical layout
+        } else if (tag == "span") { // Horizontal container
+             auto w = std::make_shared<QWidget>();
+            el->widget = w;
+            el->layout = std::make_shared<QHBoxLayout>(w.get());
+        } else if (tag == "button") {
+            el->widget = std::make_shared<QPushButton>();
+        } else if (tag == "label") {
+            el->widget = std::make_shared<QLabel>();
+        } else if (tag == "input") {
+            el->widget = std::make_shared<QLineEdit>();
+        } else if (tag == "window") {
+             auto w = std::make_shared<QWidget>();
+             el->widget = w;
+             el->layout = std::make_shared<QVBoxLayout>(w.get());
+             w->resize(400, 300); // Default size
+        }
+        
+        return el;
+    }
+};
+
+// Global document instance
+// Accessible in Riri as 'document' via code gen mapping?
+// Or we just instantiate 'Document document;' in main?
+// No, Riri code needs to access it. 
+// We will modify main() generation or provide a "getDocument()" built-in.
+// Simpler: Just allow user to 'let document = new Document();' 
+// But Document state?
+// Let's make Document struct have no state, just factory methods.
+`;
+        }
+
+        cppCode += "\n";
 
         // Helper for printing
         cppCode += `
@@ -114,7 +235,12 @@ void print_val(const char* t) { std::cout << t; }
                 return "// import " + (stmt as any).path + "\n";
             case NodeType.TryStatement:
                 return this.genTryStatement(stmt as TryStatement);
+            case NodeType.ClassDeclaration:
+                return this.genClassDeclaration(stmt as ClassDeclaration);
             default:
+                // Only throw if strictly unknown and unhandled.
+                // But we see it didn't throw before? Maybe switch covered it?
+                // Or maybe parser returned FunctionDeclaration for class? No.
                 throw new Error(`Unknown statement kind: ${stmt.kind}`);
         }
     }
@@ -143,6 +269,7 @@ void print_val(const char* t) { std::cout << t; }
     }
 
     private genReturnStatement(stmt: ReturnStatement): string {
+        if (!stmt.value) return "return;\n";
         return `return ${this.genExpression(stmt.value)};\n`;
     }
 
@@ -205,6 +332,45 @@ void print_val(const char* t) { std::cout << t; }
         return code;
     }
 
+    private genClassDeclaration(stmt: ClassDeclaration): string {
+        let code = `struct ${stmt.name} {\n`;
+
+        // Fields
+        for (const f of stmt.fields) {
+            if (f.value) {
+                let type = "int";
+                const val = f.value;
+                if (val.kind === NodeType.StringLiteral) type = "std::string";
+                else if (val.kind === NodeType.ArrayLiteral) type = "std::vector<std::string>";
+                else if (val.kind === NodeType.NumericLiteral) {
+                    if ((val as NumericLiteral).value.toString().includes(".")) type = "double";
+                }
+                else if (val.kind === NodeType.NewExpression) type = `std::shared_ptr<${(val as NewExpression).className}>`;
+                else if (val.kind === NodeType.Identifier) {
+                    const s = (val as Identifier).symbol;
+                    if (s === "true" || s === "false") type = "bool";
+                }
+                code += `    ${type} ${f.identifier} = ${this.genExpression(val)};\n`;
+            } else {
+                code += `    int ${f.identifier};\n`;
+            }
+        }
+
+        // Methods
+        for (const m of stmt.methods) {
+            const params = m.params.map((p: any) => `auto ${p}`).join(", ");
+            let body = "{\n";
+            for (const s of m.body) {
+                body += this.genStatement(s);
+            }
+            body += "}\n";
+            code += `    auto ${m.name}(${params}) ${body}`;
+        }
+
+        code += "};\n";
+        return code;
+    }
+
     private genExprStatement(stmt: ExpressionStatement): string {
         return `${this.genExpression(stmt.expression)};\n`;
     }
@@ -223,6 +389,8 @@ void print_val(const char* t) { std::cout << t; }
                 return this.genNewExpr(expr as NewExpression);
             case NodeType.ThisExpression:
                 return "this";
+            case NodeType.AssignmentExpression:
+                return this.genAssignmentExpr(expr as AssignmentExpression);
             case NodeType.Identifier:
                 const symbol = (expr as Identifier).symbol;
                 return symbol === "main" ? "riri_main" : symbol;
@@ -237,9 +405,91 @@ void print_val(const char* t) { std::cout << t; }
                 return this.genExpression((expr as AwaitExpression).argument);
             case NodeType.UnaryExpression:
                 return `(${(expr as any).operator}${this.genExpression((expr as any).argument)})`;
+            case NodeType.ArrowFunctionExpression:
+                return this.genArrowFunction(expr as ArrowFunctionExpression);
             default:
                 throw new Error(`Unknown expression kind: ${expr.kind}`);
         }
+    }
+
+    private genArrowFunction(expr: ArrowFunctionExpression): string {
+        // [=](auto p1, ...) { ... }
+        // Capture by value [=] is safer for local vars (args).
+        // For shared state, user must use Objects (classes) which are pointers.
+
+        const params = expr.params.map((p: any) => {
+            // HACK: If param is named 'req', type it as const httplib::Request&
+            // If param is named 'res', type it as httplib::Response&
+            if (p === "req") return "const httplib::Request& req";
+            if (p === "res") return "httplib::Response& res";
+            if (p === "next") return "std::function<void()> next"; // Middleware
+            return `auto ${p}`;
+        }).join(", ");
+
+        let body = "{\n";
+        for (const s of expr.body) {
+            body += this.genStatement(s);
+        }
+        // If it's a middleware (has next), we might need to handle return values.
+        // httplib expects HandlerResponse.
+        // But for MVP, let's assume void and we wrap it or httplib accepts void lambda?
+        // httplib::Server::Handler is (req, res). Returns void.
+        // httplib middleware returns HandlerResponse.
+
+        // If params include 'next', we are in middleware context.
+        // We need to return httplib::Server::HandlerResponse::Handled automatically?
+        // Or unhandled?
+        // Let's assume user calls next().
+        if (expr.params.includes("next")) {
+            // Setup next() to be a dummy or mapped?
+            // Actually httplib PreRoutingHandler signature is:
+            // std::function<HandlerResponse(const Request &, Response &)>
+            // It does NOT take 'next'.
+            // It returns Handled (hijack) or Unhandled (continue).
+
+            // So 'next()' call in user code should map to 'return Unhandled'.
+            // If they send response, they should 'return Handled'.
+
+            // This is tricky to map 1:1 to Express 'next()'.
+            // Express: callback(req, res, next) -> void.
+            // Httplib: (req, res) -> HandlerResponse.
+
+            // We can generate wrapper code? NO, genArrowFunction is generic.
+            // We can check inside body if 'next' is called?
+
+            // Workaround:
+            // Generate: [=](const httplib::Request& req, httplib::Response& res) { ... return httplib::Server::HandlerResponse::Unhandled; }
+            // User code `next()` -> `// no-op or return Unhandled`.
+
+        }
+
+        body += "}";
+
+        return `[=](${params}) ${body}`;
+    }
+
+    private genIndexExpr(expr: MemberExpression): string {
+        const objExp = this.genExpression(expr.object);
+        const indexExp = this.genExpression(expr.property as Expression);
+
+        // Check if accessing URL params or Query params
+        // This relies on detecting the generated code pattern "req.path_params" or "req.params"
+        // But objExp is the generated string! "req.path_params"
+
+        if (objExp.includes(".path_params")) { // req.params
+            return `_riri_get_param(${objExp}, ${indexExp})`;
+        }
+        if (objExp.includes(".params") && !objExp.includes("path_params")) { // req.query (exclude path_params)
+            return `_riri_get_query(${objExp}, ${indexExp})`;
+        }
+
+        return `${objExp}[${indexExp}]`;
+    }
+
+    private genAssignmentExpr(expr: AssignmentExpression): string {
+        const left = this.genExpression(expr.assignee);
+        const right = this.genExpression(expr.value);
+        return `${left} = ${right}`;
     }
 
     private genBinaryExpr(expr: BinaryExpression): string {
@@ -265,19 +515,14 @@ void print_val(const char* t) { std::cout << t; }
         // 1. Direct identifier "console.log" (if parser somehow allowed it, unlikely with dot)
         // 2. MemberExpression console . log
 
-        let isConsoleLog = false;
         let isMathCall = false;
         let mathFunc = "";
 
-        if (expr.callee.kind === NodeType.Identifier && (expr.callee as Identifier).symbol === "console.log") {
-            isConsoleLog = true;
-        } else if (expr.callee.kind === NodeType.MemberExpression) {
+        if (expr.callee.kind === NodeType.MemberExpression) {
             const member = expr.callee as MemberExpression;
             if (member.object.kind === NodeType.Identifier) {
                 const objName = (member.object as Identifier).symbol;
-                if (objName === "console" && member.property === "log") {
-                    isConsoleLog = true;
-                } else if (objName === "Math") {
+                if (objName === "Math") {
                     isMathCall = true;
                     if (member.property === "random") {
                         mathFunc = "((double)std::rand() / (RAND_MAX))";
@@ -286,18 +531,6 @@ void print_val(const char* t) { std::cout << t; }
                     }
                 }
             }
-        }
-
-        if (isConsoleLog) {
-            let code = "";
-            for (let i = 0; i < expr.args.length; i++) {
-                code += `print_val(${this.genExpression(expr.args[i])});`;
-                if (i < expr.args.length - 1) {
-                    code += `std::cout << " ";`;
-                }
-            }
-            code += `std::cout << std::endl;`;
-            return code;
         }
 
         if (isMathCall) {
@@ -315,12 +548,27 @@ void print_val(const char* t) { std::cout << t; }
             return `std::cout << ${printArgs} << std::endl`;
         }
 
+        // Support console.table -> tprint
+        // Handled below in MemberExpression check
+
         if (callee === "input") {
             return `_riri_input()`;
         }
 
         if (callee === "input") {
             return `_riri_input()`;
+        }
+
+        // Check for specific member expressions like console.table
+        if (expr.callee.kind === NodeType.MemberExpression) {
+            const member = expr.callee as MemberExpression;
+            if (member.object.kind === NodeType.Identifier) {
+                const obj = (member.object as Identifier).symbol;
+                if (obj === "console" && member.property === "table") {
+                    const args = expr.args.map(a => this.genExpression(a)).join(", ");
+                    return `_riri_tprint(${args});\n`;
+                }
+            }
         }
 
         if (callee === "tprint") {
@@ -339,11 +587,73 @@ void print_val(const char* t) { std::cout << t; }
             // sort(arr) -> std::sort(arr.begin(), arr.end())
             const arg = this.genExpression(expr.args[0]);
             return `std::sort(${arg}.begin(), ${arg}.end())`;
+        } else if (callee === "string") {
+            const arg = this.genExpression(expr.args[0]);
+            return `std::to_string(${arg})`;
+        } else if (callee === "float") {
+            const arg = this.genExpression(expr.args[0]);
+            return `std::stod(${arg})`;
+        } else if (callee === "rand") {
+            return `std::rand()`;
+        }
+
+        if (!expr.callee) {
+            throw new Error("CallExpression missing callee");
         }
 
         // Handle .push() and .pop() specifically to support both Vectors and Heaps
         if (expr.callee.kind === NodeType.MemberExpression) {
             const member = expr.callee as MemberExpression;
+            const method = member.property;
+
+            // Server methods
+            if (method === "listen") {
+                const port = this.genExpression(expr.args[0]);
+                return `${this.genExpression(member.object)}->listen("0.0.0.0", ${port})`;
+            }
+
+            if (["get", "post", "put", "delete"].includes(method)) {
+                // app.get("/", (req, res) => { ... })
+                // Only if 2 args and first is string? 
+                // Simple check: args.length == 2.
+                // Tic Tac Toe uses .get() on map/vector likely with 1 or 0 args? Or 2?
+                // If 2 args, it might still collide.
+                // We should check if object appears to be a Server?
+                // Or if method is exactly one of these AND args[0] is string literal?
+
+                if (expr.args.length === 2) {
+                    const path = this.genExpression(expr.args[0]);
+                    const callback = this.genExpression(expr.args[1]);
+
+                    // Capitalize method for httplib: Get, Post, Put, Delete
+                    const httpMethod = method.charAt(0).toUpperCase() + method.slice(1);
+                    return `${this.genExpression(member.object)}->${httpMethod}(${path}, ${callback})`;
+                }
+            }
+
+            if (method === "use") {
+                // app.use((req, res, next) => { ... })
+                // httplib set_pre_routing_handler
+                const callback = this.genExpression(expr.args[0]);
+                return `${this.genExpression(member.object)}->set_pre_routing_handler(${callback})`;
+            }
+
+            // Response methods (res.send, res.json)
+            // We assume object is 'res' or similar (mostly checking method name for now)
+            if (method === "send") {
+                // res.send(body) -> res.set_content(body, "text/plain")
+                const body = this.genExpression(expr.args[0]);
+                return `${this.genExpression(member.object)}.set_content(${body}, "text/plain")`;
+            }
+            if (method === "json") {
+                const body = this.genExpression(expr.args[0]);
+                return `${this.genExpression(member.object)}.set_content(${body}, "application/json")`;
+            }
+            if (method === "status") {
+                const code = this.genExpression(expr.args[0]);
+                return `${this.genExpression(member.object)}.status = ${code}`;
+            }
+
             if (member.property === "push") {
                 // riri_push(obj, val)
                 const obj = this.genExpression(member.object);
@@ -354,6 +664,20 @@ void print_val(const char* t) { std::cout << t; }
                 // riri_pop(obj)
                 const obj = this.genExpression(member.object);
                 return `_riri_pop(${obj})`;
+            }
+        }
+
+        if (expr.callee.kind === NodeType.MemberExpression) {
+            const member = expr.callee as MemberExpression;
+            // ... (previous logic for push/Server methods)
+
+            // Map methods on values (req.query.count)
+            const objExp = this.genExpression(member.object);
+            if (member.property === "count" || member.property === "find") {
+                if (objExp.endsWith(".params") || objExp.endsWith(".path_params")) {
+                    const args = expr.args.map(a => this.genExpression(a)).join(", ");
+                    return `${objExp}.${member.property}(${args})`;
+                }
             }
         }
 
@@ -381,41 +705,17 @@ void print_val(const char* t) { std::cout << t; }
         return code;
     }
 
-    private genClassDeclaration(stmt: ClassDeclaration): string {
-        let code = `struct ${stmt.name} {\n`;
-
-        for (const field of stmt.fields) {
-            let type = "int";
-            if (field.value && field.value.kind === NodeType.StringLiteral) {
-                type = "std::string";
-            }
-
-            if (field.value) {
-                code += `${type} ${field.identifier} = ${this.genExpression(field.value)};\n`;
-            } else {
-                code += `${type} ${field.identifier};\n`;
-            }
-        }
-
-        // Methods
-        for (const method of stmt.methods) {
-            // auto method(auto a, auto b) { ... }
-            const params = method.params.map(p => `auto ${p}`).join(", ");
-            let body = "{\n";
-            for (const s of method.body) {
-                body += this.genStatement(s);
-            }
-            body += "}\n";
-            code += `auto ${method.name}(${params}) ${body}`;
-        }
-
-        code += "};\n\n";
-        return code;
-    }
 
     private genNewExpr(expr: NewExpression): string {
         const args = expr.args.map(a => this.genExpression(a)).join(", ");
-        return `new ${expr.className}(${args})`; // C++ new returns pointer
+
+        if (expr.className === "Server") {
+            // httplib::Server is huge, use shared_ptr
+            return `std::make_shared<httplib::Server>()`;
+        }
+
+        // Use std::make_shared for ARC
+        return `std::make_shared<${expr.className}>(${args})`;
     }
 
     private genTryStatement(stmt: TryStatement): string {
@@ -440,7 +740,11 @@ void print_val(const char* t) { std::cout << t; }
             // Hack: `catch (const std::exception& e)` and define variable `e`?
 
             if (stmt.catchParam) {
-                code += `catch (const std::exception& ${stmt.catchParam}) {\n`;
+                // Generate: catch (const std::exception& e) { std::string e_msg = e.what(); ... }
+                // We map the user identifier to a local string variable containing .what()
+                // Because users might want to print(e).
+                code += `catch (const std::exception& _e) {\n`;
+                code += `std::string ${stmt.catchParam} = _e.what();\n`;
             } else {
                 code += "catch (...) {\n";
             }
@@ -472,7 +776,7 @@ void print_val(const char* t) { std::cout << t; }
 
     private genMemberExpr(expr: MemberExpression): string {
         if (expr.computed) {
-            return `${this.genExpression(expr.object)}[${this.genExpression(expr.property as Expression)}]`;
+            return this.genIndexExpr(expr);
         }
 
         // Check if object is a string or array (std::vector) which are value types, thus use dot (.)
@@ -572,18 +876,66 @@ void print_val(const char* t) { std::cout << t; }
             return `(${this.genExpression(expr.object)})->${expr.property}`;
         }
 
-        const valueTypeMethods = ["length", "size", "substr", "at", "push_back", "pop_back"]; // Removed push/pop
+        // Handle array.length, string.length, vector.size
+        const valueTypeMethods = ["length", "size", "substr", "at", "push_back", "pop_back"];
 
         if (typeof expr.property === 'string' && valueTypeMethods.includes(expr.property)) {
-            return `(${this.genExpression(expr.object)}).${expr.property}`;
+            if (expr.property === "length") {
+                // Arrays/Vectors in C++ use .size()
+                // Strings use .length() or .size()
+                return `${this.genExpression(expr.object)}.size()`;
+            }
+
+            return `${this.genExpression(expr.object)}.${expr.property}`;
         }
 
+        // Express-like mappings
+        if (expr.property === "params") {
+            // req.params -> req.path_params
+            return `${this.genExpression(expr.object)}.path_params`;
+        }
+        if (expr.property === "query") {
+            // req.query -> req.params (httplib nomenclature)
+            return `${this.genExpression(expr.object)}.params`;
+        }
+
+        // HACK: If we are accessing .count() on a map (params/query), use dot.
+        // genExpression returns "req.params" (which is value)
+        if (expr.property === "count") {
+            const objExp = this.genExpression(expr.object);
+            if (objExp.endsWith(".params") || objExp.endsWith(".path_params")) {
+                return `(${objExp})`; // Return value, genCallExpr handles the call ???
+                // Wait, genCallExpr calls genMemberExpr?
+                // NO, genCallExpr INSPECTS callee.
+                // If callee is member expression.
+                // It gets object.
+                // It returns `object->method`.
+                // We need to change genCallExpr logic.
+            }
+        }
+
+        // Default pointer access
         return `(${this.genExpression(expr.object)})->${expr.property}`;
     }
+
+    // NOTE: genCallExpr handles the method invocation syntax `->` vs `.`
+    // We need to update genCallExpr logic separately.
 
     private getBuiltinLibraries(): string {
         return `
 // --- Built-in Helpers ---
+// Helper to get from multimap (query)
+std::string _riri_get_query(const std::multimap<std::string, std::string>& m, std::string key) {
+    auto it = m.find(key);
+    if (it != m.end()) return it->second;
+    return "";
+}
+// Helper to get from map (path params)
+std::string _riri_get_param(const std::unordered_map<std::string, std::string>& m, std::string key) {
+    if (m.count(key)) return m.at(key);
+    return "";
+}
+
 std::string _riri_input() {
     std::string s;
     std::getline(std::cin, s);
@@ -598,9 +950,15 @@ void _riri_push(std::vector<T>& vec, T val) {
     vec.push_back(val);
 }
 
-// Heap pointer push
+// Heap/Object pointer push (raw)
 template <typename T>
 void _riri_push(T* obj, int val) {
+    obj->push(val);
+}
+
+// Heap/Object shared_ptr push
+template <typename T>
+void _riri_push(std::shared_ptr<T> obj, int val) {
     obj->push(val);
 }
 
@@ -613,9 +971,15 @@ T _riri_pop(std::vector<T>& vec) {
     return val;
 }
 
-// Heap pointer pop
+// Heap/Object pointer pop (raw)
 template <typename T>
 int _riri_pop(T* obj) {
+    return obj->pop();
+}
+
+// Heap/Object shared_ptr pop
+template <typename T>
+int _riri_pop(std::shared_ptr<T> obj) {
     return obj->pop();
 }
 
@@ -648,39 +1012,31 @@ void _riri_tprint(const std::vector<T>& vec) {
 
 struct Node {
     int data;
-    Node* left = nullptr;
-    Node* right = nullptr;
+    std::shared_ptr<Node> left = nullptr;
+    std::shared_ptr<Node> right = nullptr;
     int height = 1; // For AVL
 
     Node(int val) : data(val) {}
 };
 
 struct BinaryTree {
-    Node* root = nullptr;
+    std::shared_ptr<Node> root = nullptr;
 
     void insert(int val) {
         if (!root) {
-            root = new Node(val);
+            root = std::make_shared<Node>(val);
             return;
         }
-        // Simple level order or just random insert? 
-        // For generic BinaryTree, let's just do BST-like insert for simplicity 
-        // unless user manually builds it.
-        // Actually, let's just provide manual node creation?
-        // Or strictly strictly BST logic.
-        // Let's make BinaryTree a base with manual attach capabilities? 
-        // RiriLang is simple. Let's make 'BinaryTree' effectively a wrapper that defaults to BST-like insert
-        // but exposes root.
         insertRec(root, val);
     }
     
-    void insertRec(Node* node, int val) {
+    void insertRec(std::shared_ptr<Node> node, int val) {
         if (val < node->data) {
             if (node->left) insertRec(node->left, val);
-            else node->left = new Node(val);
+            else node->left = std::make_shared<Node>(val);
         } else {
             if (node->right) insertRec(node->right, val);
-            else node->right = new Node(val);
+            else node->right = std::make_shared<Node>(val);
         }
     }
 
@@ -689,7 +1045,7 @@ struct BinaryTree {
         std::cout << std::endl;
     }
 
-    void printInOrderRec(Node* node) {
+    void printInOrderRec(std::shared_ptr<Node> node) {
         if (!node) return;
         printInOrderRec(node->left);
         std::cout << node->data << " ";
@@ -703,7 +1059,7 @@ struct BST : public BinaryTree {
         return searchRec(root, val);
     }
 
-    bool searchRec(Node* node, int val) {
+    bool searchRec(std::shared_ptr<Node> node, int val) {
         if (!node) return false;
         if (node->data == val) return true;
         if (val < node->data) return searchRec(node->left, val);
@@ -712,9 +1068,9 @@ struct BST : public BinaryTree {
 };
 
 struct AVL {
-    Node* root = nullptr;
+    std::shared_ptr<Node> root = nullptr;
 
-    int height(Node* N) {
+    int height(std::shared_ptr<Node> N) {
         if (N == nullptr) return 0;
         return N->height;
     }
@@ -723,9 +1079,9 @@ struct AVL {
         return (a > b) ? a : b;
     }
 
-    Node* rightRotate(Node* y) {
-        Node* x = y->left;
-        Node* T2 = x->right;
+    std::shared_ptr<Node> rightRotate(std::shared_ptr<Node> y) {
+        std::shared_ptr<Node> x = y->left;
+        std::shared_ptr<Node> T2 = x->right;
         x->right = y;
         y->left = T2;
         y->height = max(height(y->left), height(y->right)) + 1;
@@ -733,9 +1089,9 @@ struct AVL {
         return x;
     }
 
-    Node* leftRotate(Node* x) {
-        Node* y = x->right;
-        Node* T2 = y->left;
+    std::shared_ptr<Node> leftRotate(std::shared_ptr<Node> x) {
+        std::shared_ptr<Node> y = x->right;
+        std::shared_ptr<Node> T2 = y->left;
         y->left = x;
         x->right = T2;
         x->height = max(height(x->left), height(x->right)) + 1;
@@ -743,13 +1099,13 @@ struct AVL {
         return y;
     }
 
-    int getBalance(Node* N) {
+    int getBalance(std::shared_ptr<Node> N) {
         if (N == nullptr) return 0;
         return height(N->left) - height(N->right);
     }
 
-    Node* insertRec(Node* node, int data) {
-        if (node == nullptr) return new Node(data);
+    std::shared_ptr<Node> insertRec(std::shared_ptr<Node> node, int data) {
+        if (node == nullptr) return std::make_shared<Node>(data);
         if (data < node->data) node->left = insertRec(node->left, data);
         else if (data > node->data) node->right = insertRec(node->right, data);
         else return node; // Equal keys not allowed
@@ -783,7 +1139,7 @@ struct AVL {
         std::cout << std::endl;
     }
 
-    void printInOrderRec(Node* node) {
+    void printInOrderRec(std::shared_ptr<Node> node) {
         if (!node) return;
         printInOrderRec(node->left);
         std::cout << node->data << " ";
@@ -815,6 +1171,183 @@ struct Heap {
     void print() {
         for (int i : data) std::cout << i << " ";
         std::cout << std::endl;
+    }
+};
+
+struct Graph {
+    std::map<int, std::vector<std::pair<int, int>>> adj; // u -> [(v, w)]
+    std::map<int, std::pair<int, int>> coords; // u -> (x, y)
+
+    void add_edge(int u, int v, int w) {
+        adj[u].push_back({v, w});
+    }
+
+    void set_pos(int u, int x, int y) {
+        coords[u] = {x, y};
+    }
+
+    std::vector<int> bfs(int start) {
+        std::vector<int> path;
+        std::queue<int> q;
+        std::set<int> visited;
+
+        q.push(start);
+        visited.insert(start);
+
+        while (!q.empty()) {
+            int u = q.front();
+            q.pop();
+            path.push_back(u);
+
+            for (auto& edge : adj[u]) {
+                int v = edge.first;
+                if (visited.find(v) == visited.end()) {
+                    visited.insert(v);
+                    q.push(v);
+                }
+            }
+        }
+        return path;
+    }
+
+    std::vector<int> dfs(int start) {
+        std::vector<int> path;
+        std::stack<int> s;
+        std::set<int> visited;
+
+        s.push(start);
+
+        while (!s.empty()) {
+            int u = s.top();
+            s.pop();
+
+            if (visited.find(u) == visited.end()) {
+                visited.insert(u);
+                path.push_back(u);
+
+                auto& neighbors = adj[u];
+                for (auto it = neighbors.rbegin(); it != neighbors.rend(); ++it) {
+                    int v = it->first;
+                    if (visited.find(v) == visited.end()) {
+                        s.push(v);
+                    }
+                }
+            }
+        }
+        return path;
+    }
+
+    std::vector<int> dijkstra(int start, int end) {
+        std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, std::greater<std::pair<int, int>>> pq;
+        std::map<int, int> dist;
+        std::map<int, int> parent;
+
+        dist[start] = 0;
+        pq.push({0, start});
+        
+        while (!pq.empty()) {
+            int d = pq.top().first;
+            int u = pq.top().second;
+            pq.pop();
+
+            if (dist.find(u) != dist.end() && d > dist[u]) continue;
+            if (u == end) break;
+
+            for (auto& edge : adj[u]) {
+                int v = edge.first;
+                int weight = edge.second;
+
+                bool is_inf = dist.find(v) == dist.end();
+                if (is_inf || dist[u] + weight < dist[v]) {
+                    dist[v] = dist[u] + weight;
+                    parent[v] = u;
+                    pq.push({dist[v], v});
+                }
+            }
+        }
+
+        std::vector<int> path;
+        if (dist.find(end) == dist.end()) return path;
+
+        int curr = end;
+        while (curr != start) {
+            path.push_back(curr);
+            curr = parent[curr];
+        }
+        path.push_back(start);
+        std::reverse(path.begin(), path.end());
+        return path;
+    }
+
+    double heuristic(int u, int v) {
+        if (coords.find(u) == coords.end() || coords.find(v) == coords.end()) return 0;
+        int dx = coords[u].first - coords[v].first;
+        int dy = coords[u].second - coords[v].second;
+        return std::sqrt(dx*dx + dy*dy);
+    }
+
+    std::vector<int> astar(int start, int end) {
+        std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, std::greater<std::pair<double, int>>> pq;
+        std::map<int, int> g_score;
+        std::map<int, int> parent;
+        
+        g_score[start] = 0;
+        pq.push({0 + heuristic(start, end), start});
+
+        while (!pq.empty()) {
+            int u = pq.top().second;
+            pq.pop();
+
+            if (u == end) break;
+
+            for (auto& edge : adj[u]) {
+                int v = edge.first;
+                int weight = edge.second;
+
+                int tentative_g = g_score[u] + weight;
+                bool is_inf = g_score.find(v) == g_score.end();
+
+                if (is_inf || tentative_g < g_score[v]) {
+                    g_score[v] = tentative_g;
+                    double f = tentative_g + heuristic(v, end);
+                    parent[v] = u;
+                    pq.push({f, v});
+                }
+            }
+        }
+
+        std::vector<int> path;
+        if (g_score.find(end) == g_score.end()) return path;
+
+        int curr = end;
+        while (curr != start) {
+            path.push_back(curr);
+            curr = parent[curr];
+        }
+        path.push_back(start);
+        std::reverse(path.begin(), path.end());
+        return path;
+    }
+};
+
+struct Regex {
+    std::regex re;
+    std::string pattern;
+
+    Regex(std::string p) : pattern(p) {
+        try {
+            re = std::regex(p);
+        } catch (const std::regex_error& e) {
+            std::cerr << "Regex error: " << e.what() << std::endl;
+        }
+    }
+
+    bool match(std::string s) {
+        return std::regex_search(s, re);
+    }
+
+    std::string replace(std::string s, std::string replacement) {
+        return std::regex_replace(s, re, replacement);
     }
 };
 

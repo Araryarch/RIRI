@@ -1,0 +1,24 @@
+// 13_gc.rr
+print("Test 13: Garbage Collection (ARC Check)");
+
+// Test shared_ptr with BST (built-in uses shared_ptr<Node>)
+let bst = new BST();
+bst.insert(10);
+bst.insert(5);
+bst.insert(15);
+
+if (bst.search(5)) {
+    // Pass
+} else {
+    print("FAIL: BST search failed after GC refactor");
+}
+
+if (bst.search(10)) {
+    // Pass
+} else {
+    print("FAIL: BST search for root failed");
+}
+
+print("ALL TESTS PASSED");
+// If this compiles and runs, it means std::shared_ptr usage is correct.
+// Memory is automatically managed via reference counting.

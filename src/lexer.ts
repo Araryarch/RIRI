@@ -52,31 +52,69 @@ export function tokenize(source: string): Token[] {
 
         // 4. Strings
         if (char === '"') {
-            cursor++; // Skip opening quote
             let str = "";
-            while (cursor < source.length && source[cursor] !== '"') {
-                str += source[cursor];
+            cursor++;
+            while (cursor < source.length) {
+                if (source[cursor] === '"') {
+                    cursor++;
+                    break;
+                }
+                if (source[cursor] === '\\' && cursor + 1 < source.length) {
+                    cursor++; // Skip backslash
+                    // Handle specific escapes if needed, for now just literal
+                    // e.g. \n, \t. C++ might handle them if we pass them raw?
+                    // But here we are building a string value.
+                    // If we pass `\"` to C++, we want `\"` in the string literal?
+                    // Or we want `"` in the value?
+                    // Codegen wrap: `std::string("` + value + `")`.
+                    // If value contains `"`, C++ string breaks.
+                    // So we must ESCAPE double quotes in codegen or kept escaped here.
+
+                    // Let's keep the escape sequence AS IS in the value for now?
+                    // If source is `\"`, value becomes `\"`.
+                    // Then codegen writes `std::string("\"")`. Correct.
+                    str += '\\' + source[cursor];
+                } else {
+                    str += source[cursor];
+                }
                 cursor++;
             }
-            cursor++; // Skip closing quote
             tokens.push({ type: TokenType.String, value: str, line });
             continue;
         }
 
-        // 5. Operators & Punctuation
-        // Check two-char operators first
-        const twoChars = source.slice(cursor, cursor + 2);
-        if (twoChars === "//") {
+        // 5. Comments (Single line)
+        if (char === '/' && cursor + 1 < source.length && source[cursor + 1] === '/') {
+            // Skip until newline
+            cursor += 2;
             while (cursor < source.length && source[cursor] !== '\n') {
                 cursor++;
             }
             continue;
         }
-        if (twoChars === "==") {
-            tokens.push({ type: TokenType.EqEq, value: "==", line });
-            cursor += 2;
+
+        // 6. Operators & Punctuation
+        // Handle '=' related operators first
+        if (char === '=') {
+            // Check for ==
+            if (cursor + 1 < source.length && source[cursor + 1] === '=') {
+                tokens.push({ type: TokenType.EqEq, value: "==", line });
+                cursor += 2;
+                continue;
+            }
+            // Check for =>
+            if (cursor + 1 < source.length && source[cursor + 1] === '>') {
+                tokens.push({ type: TokenType.Arrow, value: "=>", line });
+                cursor += 2;
+                continue;
+            }
+            tokens.push({ type: TokenType.Equals, value: "=", line });
+            cursor++;
             continue;
         }
+
+        // Check other two-char operators
+        const twoChars = source.slice(cursor, cursor + 2);
         if (twoChars === "!=") {
             tokens.push({ type: TokenType.NotEq, value: "!=", line });
             cursor += 2;
@@ -99,6 +137,11 @@ export function tokenize(source: string): Token[] {
         }
         if (twoChars === "||") {
             tokens.push({ type: TokenType.Or, value: "||", line });
+            cursor += 2;
+            continue;
+        }
+        if (twoChars === "=>") {
+            tokens.push({ type: TokenType.Arrow, value: "=>", line });
             cursor += 2;
             continue;
         }

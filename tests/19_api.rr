@@ -1,0 +1,42 @@
+
+// Test: API Server Syntax
+
+let app = new Server();
+
+// Middleware test
+app.use((req, res, next) => {
+    // print("Middleware");
+});
+
+// Route test
+app.get("/test", (req, res) => {
+    res.send("ok");
+});
+
+// Params test
+app.get("/user/:id", (req, res) => {
+    let id = req.params["id"];
+    if (id == "123") {
+        res.send("User 123");
+    } else {
+        res.status(404);
+        res.send("Not Found");
+    }
+});
+
+// Query test
+app.get("/search", (req, res) => {
+    if (req.query.count("q")) {
+        let q = req.query["q"];
+        res.send("Q: " + q);
+    } else {
+        res.send("No Q");
+    }
+});
+
+// This test mostly verifies compilation.
+// To verify runtime, we would need to spawn a thread or process to curl it?
+// For now, if it compiles, it passes the build test.
+// app.listen(8080); // BLOCKS! Do not run in test suite.
+print("App setup complete.");
+print("API Test Compiled Successfully");

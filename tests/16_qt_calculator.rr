@@ -1,0 +1,225 @@
+// Complex Calculator App (DOM Syntax)
+// Run: rrc run tests/16_qt_calculator.rr --qt
+
+print("Starting Complex Calculator...");
+
+let argc = 0;
+let app = new QApplication(argc, nullptr);
+let doc = new Document();
+
+// --- UI Construction ---
+
+let win = doc.createElement("window");
+win.setAttribute("title", "Riri Calc Pro");
+// Qt stylesheet for the main window
+win.setAttribute("style", "background-color: #2c3e50;");
+// Window size isn't directly settable via style in simple wrapper, but we rely on content.
+
+// 1. Display Area
+let display = doc.createElement("input");
+display.setAttribute("text", "0");
+// IOS-style display
+display.setAttribute("style", "font-size: 32px; padding: 15px; margin: 10px; background-color: #ecf0f1; border-radius: 5px; text-align: right; color: #333; border: none;");
+// Make read-only logic is in Qt, here we just don't type into it manually if we don't focus it.
+// Wrapper doesn't expose setReadOnly yet via setAttribute. 
+// We could add "readonly" attribute support, but for now just use it as display.
+
+win.appendChild(display);
+
+// 2. Keypad container
+let keypad = doc.createElement("div");
+
+// Helper for styled buttons
+// types: 'num' (gray), 'op' (orange), 'action' (light gray), 'eq' (green)
+let createBtn = (label, type) => {
+    let btn = doc.createElement("button");
+    btn.setAttribute("text", label);
+    
+    let baseStyle = "font-size: 18px; padding: 15px; margin: 5px; border-radius: 10px; border: none; min-width: 50px; min-height: 50px;";
+    
+    if (type == "num") {
+        baseStyle = baseStyle + " background-color: #34495e; color: white;";
+    } else {
+        if (type == "op") {
+            baseStyle = baseStyle + " background-color: #e67e22; color: white; font-weight: bold;";
+        } else {
+            if (type == "action") {
+                baseStyle = baseStyle + " background-color: #95a5a6; color: black;";
+            } else {
+                if (type == "eq") {
+                    baseStyle = baseStyle + " background-color: #27ae60; color: white; font-weight: bold;";
+                }
+            }
+        }
+    }
+    
+    btn.setAttribute("style", baseStyle);
+    return btn;
+};
+
+// Rows
+let row1 = doc.createElement("span");
+let row2 = doc.createElement("span");
+let row3 = doc.createElement("span");
+let row4 = doc.createElement("span");
+
+// Row 1: 7 8 9 /
+let b7 = createBtn("7", "num");
+let b8 = createBtn("8", "num");
+let b9 = createBtn("9", "num");
+let bDiv = createBtn("/", "op");
+row1.appendChild(b7); row1.appendChild(b8); row1.appendChild(b9); row1.appendChild(bDiv);
+
+// Row 2: 4 5 6 *
+let b4 = createBtn("4", "num");
+let b5 = createBtn("5", "num");
+let b6 = createBtn("6", "num");
+let bMul = createBtn("*", "op");
+row2.appendChild(b4); row2.appendChild(b5); row2.appendChild(b6); row2.appendChild(bMul);
+
+// Row 3: 1 2 3 -
+let b1 = createBtn("1", "num");
+let b2 = createBtn("2", "num");
+let b3 = createBtn("3", "num");
+let bSub = createBtn("-", "op");
+row3.appendChild(b1); row3.appendChild(b2); row3.appendChild(b3); row3.appendChild(bSub);
+
+// Row 4: C 0 . + = (need more rows or wider layout?)
+// Let's do: C 0 . =    and + on side?
+// Actually standard grid is 4 wide.
+// Row 4: C 0 . +
+let bC = createBtn("C", "action");
+let b0 = createBtn("0", "num");
+let bDot = createBtn(".", "num");
+let bAdd = createBtn("+", "op");
+row4.appendChild(bC); row4.appendChild(b0); row4.appendChild(bDot); row4.appendChild(bAdd);
+
+// Row 5: = (Wide)
+let row5 = doc.createElement("span");
+let bEq = createBtn("=", "eq");
+// Style override for wide button
+bEq.setAttribute("style", "font-size: 24px; padding: 10px; margin: 5px; border-radius: 10px; border: none; background-color: #27ae60; color: white; min-width: 250px;");
+row5.appendChild(bEq);
+
+keypad.appendChild(row1);
+keypad.appendChild(row2);
+keypad.appendChild(row3);
+keypad.appendChild(row4);
+keypad.appendChild(row5);
+
+win.appendChild(keypad);
+
+// --- Logic ---
+// State
+let currentInput = "0";
+let pendingVal = 0.0;
+let pendingOp = "";
+let newNumberStarted = true;
+
+// Update Display Helper
+let updateDisplay = () => {
+    display.setAttribute("text", currentInput);
+};
+
+// Number Handler
+let onNum = (n) => {
+    if (newNumberStarted) {
+        currentInput = n;
+        newNumberStarted = false;
+    } else {
+        if (currentInput == "0") {
+            currentInput = n;
+        } else {
+            currentInput = currentInput + n;
+        }
+    }
+    updateDisplay();
+};
+
+b1.addEventListener("click", () => { onNum("1"); });
+b2.addEventListener("click", () => { onNum("2"); });
+b3.addEventListener("click", () => { onNum("3"); });
+b4.addEventListener("click", () => { onNum("4"); });
+b5.addEventListener("click", () => { onNum("5"); });
+b6.addEventListener("click", () => { onNum("6"); });
+b7.addEventListener("click", () => { onNum("7"); });
+b8.addEventListener("click", () => { onNum("8"); });
+b9.addEventListener("click", () => { onNum("9"); });
+b0.addEventListener("click", () => { onNum("0"); });
+
+bDot.addEventListener("click", () => {
+    if (newNumberStarted) {
+        currentInput = "0.";
+        newNumberStarted = false;
+    } else {
+        currentInput = currentInput + ".";
+    }
+    updateDisplay();
+});
+
+// Op Handler
+let onOp = (op) => {
+    // Store current val
+    pendingVal = float(currentInput);
+    pendingOp = op;
+    newNumberStarted = true;
+    print("Op: " + op);
+};
+
+bAdd.addEventListener("click", () => { onOp("+"); });
+bSub.addEventListener("click", () => { onOp("-"); });
+bMul.addEventListener("click", () => { onOp("*"); });
+bDiv.addEventListener("click", () => { onOp("/"); });
+
+// Clear
+// Clear
+// Clear
+bC.addEventListener("click", () => {
+    currentInput = "0";
+    pendingVal = 0.0;
+    pendingOp = "";
+    newNumberStarted = true;
+    updateDisplay();
+});
+
+// Equals
+bEq.addEventListener("click", () => {
+    if (pendingOp == "") { return; }
+
+    let currentVal = float(currentInput);
+    let result = 0.0;
+
+    if (pendingOp == "+") {
+        result = pendingVal + currentVal;
+    } else {
+        if (pendingOp == "-") {
+            result = pendingVal - currentVal;
+        } else {
+            if (pendingOp == "*") {
+                result = pendingVal * currentVal;
+            } else {
+                if (pendingOp == "/") {
+                    result = pendingVal / currentVal;
+                }
+            }
+        }
+    }
+
+    // Convert result back to string
+    // float -> string? string(result) works? 
+    // Riri stdlib string(x) calls std::to_string(x). 
+    // It might output 123.000000.
+    // That's acceptable for v1 calculator.
+    currentInput = string(result);
+    // Remove trailing zeros? Not easy without regex or loop.
+    
+    pendingOp = "";
+    newNumberStarted = true;
+    updateDisplay();
+});
+
+
+win.show();
+print("Calculator Pro Started.");
+app.exec();
+print("ALL TESTS PASSED");

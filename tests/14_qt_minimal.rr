@@ -1,0 +1,31 @@
+// 14_qt_minimal.rr
+// This test launches a simple Qt window using DOM syntax.
+
+print("Test 14: Qt Minimal DOM Popup");
+
+// 0. Initialize Qt Application (Required before creating widgets)
+let argc = 0;
+let app = new QApplication(argc, nullptr);
+
+let document = new Document();
+
+// 1. Create Window
+let w = document.createElement("window");
+w.setAttribute("title", "Riri Qt Test");
+w.setAttribute("style", "resize: 200px 100px;"); // resize isn't style usually, but we can assume default or set size via method if exposed.
+// Actually QtElement doesn't parse 'resize' style yet unless implemented.
+// Let's rely on default size or assume it opens small.
+
+// 2. Add Label
+let label = document.createElement("label");
+label.setAttribute("text", "Close me to PASS test!");
+label.setAttribute("style", "margin: 20px;");
+
+w.appendChild(label);
+
+w.show();
+
+print("Window opened. Waiting for close...");
+app.exec();
+
+print("ALL TESTS PASSED");

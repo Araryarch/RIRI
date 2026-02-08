@@ -27,7 +27,8 @@ export function runTests(dir: string = "tests") {
     // Let's deduce the runner.
 
     // We can assume we are running inside the project dev environment.
-    const runner = "bun run src/index.ts";
+    // Use absolute path to bun to avoid PATH issues
+    const runner = "/home/ararya/.bun/bin/bun run src/index.ts";
 
     for (const file of files) {
         const filePath = path.join(testDir, file);
@@ -38,8 +39,13 @@ export function runTests(dir: string = "tests") {
             // We expect the test file to print "PASS" or "FAIL" explicitly?
             // Or just exit code 0?
             // Our current tests print "ALL TESTS PASSED" on success.
+            // Check if test needs --qt
+            let flags = "";
+            if (file.includes("qt")) {
+                flags += " --qt";
+            }
 
-            const cmd = `${runner} run "${filePath}"`;
+            const cmd = `${runner} run "${filePath}"${flags}`;
             const output = execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
 
             if (output.includes("ALL TESTS PASSED")) {
