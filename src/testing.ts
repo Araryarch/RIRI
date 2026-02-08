@@ -27,8 +27,9 @@ export function runTests(dir: string = "tests") {
     // Let's deduce the runner.
 
     // We can assume we are running inside the project dev environment.
-    // Use absolute path to bun to avoid PATH issues
-    const runner = "/home/ararya/.bun/bin/bun run src/index.ts";
+    // Use 'bun' from PATH to work in CI/CD environments
+    const bunPath = process.env.BUN_PATH || 'bun';
+    const runner = `${bunPath} run src/index.ts`;
 
     for (const file of files) {
         const filePath = path.join(testDir, file);
