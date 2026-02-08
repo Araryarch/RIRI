@@ -16,6 +16,12 @@ export enum TokenType {
     Default,
     Break,
     Continue,
+    Import,
+    Try,
+    Catch,
+    Finally,
+    Async,
+    Await,
 
     // Literals
     Identifier,
@@ -28,6 +34,7 @@ export enum TokenType {
     Minus,  // -
     Multiply, // *
     Divide, // /
+    Modulo, // %
     EqEq,   // ==
     NotEq,  // !=
     Less,   // <
@@ -63,6 +70,7 @@ export const KEYWORDS: Record<string, TokenType> = {
     "while": TokenType.While,
     "for": TokenType.For,
     "func": TokenType.Func,
+    "fn": TokenType.Func,
     "return": TokenType.Return,
     "class": TokenType.Class,
     "new": TokenType.New,
@@ -72,4 +80,10 @@ export const KEYWORDS: Record<string, TokenType> = {
     "default": TokenType.Default,
     "break": TokenType.Break,
     "continue": TokenType.Continue,
+    "import": TokenType.Import,
+    "try": TokenType.Try,
+    "catch": TokenType.Catch,
+    "finally": TokenType.Finally,
+    "async": TokenType.Async,
+    "await": TokenType.Await,
 };

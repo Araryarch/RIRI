@@ -1,0 +1,17 @@
+import "math_lib.rr";
+
+fn main() {
+    print("Testing Modularity...");
+    
+    let sum = add(10, 5);
+    print("Sum:", sum);
+
+    let diff = subtract(10, 5);
+    print("Diff:", diff);
+
+    let calc = new Calculator();
+    calc.result = 10;
+    print("Calc Result:", calc.multiply(2));
+}
+
+main();

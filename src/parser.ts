@@ -23,11 +23,14 @@ import {
     CaseClause,
     BreakStatement,
     ArrayLiteral,
+    TryStatement,
+    AwaitExpression,
     NodeType
 } from "./ast";
 import { Token, TokenType } from "./tokens";
 
 export class Parser {
+    // ... (constructor/produceAST etc unchanged) ...
     private tokens: Token[];
     private position: number = 0;
 
@@ -79,7 +82,9 @@ export class Parser {
             case TokenType.Let:
                 return this.parseVarDeclaration();
             case TokenType.Func:
-                return this.parseFnDeclaration();
+                return this.parseFunctionDeclaration();
+            case TokenType.Async:
+                return this.parseFunctionDeclaration();
             case TokenType.Return:
                 return this.parseReturnStatement();
             case TokenType.If:
@@ -93,23 +98,11 @@ export class Parser {
             case TokenType.Switch:
                 return this.parseSwitchStatement();
             case TokenType.Break:
-                this.eat();
-                this.expect(TokenType.SemiColon, "Expected ; after break");
-                // For now, treat break as a simple expression statement or we need a proper BreakStatement node?
-                // Plan didn't specify BreakStatement node.
-                // But CodeGenerator handles `ExpressionStatement`.
-                // `break` is not an expression.
-                // Let's add hack: emit raw C string? No.
-                // Let's treat it as ExpressionStatement? No, `break` keyword isn't expression.
-                // We need BreakStatement in AST or just handle it here.
-                // Since I didn't add BreakStatement to AST, let's skip AST update and just make it an "ExpressionStatement" 
-                // where expression is a special Identifier "break"? 
-                // Or better, let's just add it to AST properly later.
-                // For now, let's assume user uses `break` only in Switch/Loop and we map it?
-                // Let's fallback to `parseExprStatement` but `break` expects expression.
-                // Ok, I need to add `BreakStatement` to AST.
-                // I will pause this specific change for a moment and update AST for Break/Continue.
-                return { kind: NodeType.BreakStatement } as BreakStatement;
+                return this.parseBreakStatement();
+            case TokenType.Import:
+                return this.parseImportStatement();
+            case TokenType.Try:
+                return this.parseTryStatement();
             default:
                 return this.parseExprStatement();
         }
@@ -135,9 +128,15 @@ export class Parser {
         return declaration;
     }
 
-    private parseFnDeclaration(): Statement {
-        this.eat(); // eat 'func'
-        const name = this.expect(TokenType.Identifier, "Expected function name following func keyword.").value;
+    private parseFunctionDeclaration(): Statement {
+        let isAsync = false;
+        if (this.at().type === TokenType.Async) {
+            this.eat(); // eat async
+            isAsync = true;
+        }
+
+        this.eat(); // eat 'func' or 'fn'
+        const name = this.expect(TokenType.Identifier, "Expected function name following func/fn keyword.").value;
 
         const args = this.parseArgs();
         const params: string[] = [];
@@ -155,7 +154,7 @@ export class Parser {
         }
         this.expect(TokenType.CloseBrace, "Closing brace expected inside function declaration");
 
-        return { kind: NodeType.FunctionDeclaration, body, name, params } as FunctionDeclaration;
+        return { kind: NodeType.FunctionDeclaration, body, name, params, async: isAsync } as FunctionDeclaration;
     }
 
     private parseReturnStatement(): Statement {
@@ -340,7 +339,7 @@ export class Parser {
 
         while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
             if (this.at().type === TokenType.Func) {
-                const func = this.parseFnDeclaration() as FunctionDeclaration;
+                const func = this.parseFunctionDeclaration() as FunctionDeclaration;
                 methods.push(func);
             } else if (this.at().type === TokenType.Let) {
                 const field = this.parseVarDeclaration() as VariableDeclaration;
@@ -425,7 +424,7 @@ export class Parser {
     private parseMultiplicitaveExpr(): Expression {
         let left = this.parseCallMemberExpr();
 
-        while (this.at().value == "/" || this.at().value == "*") {
+        while (this.at().value == "/" || this.at().value == "*" || this.at().value == "%") {
             const operator = this.eat().value;
             const right = this.parseCallMemberExpr();
             left = {
@@ -547,6 +546,10 @@ export class Parser {
                 const className = this.expect(TokenType.Identifier, "Expected class name after new.").value;
                 const args = this.parseArgs();
                 return { kind: NodeType.NewExpression, className, args } as NewExpression;
+            case TokenType.Await:
+                this.eat(); // eat await
+                const arg = this.parseExpression();
+                return { kind: NodeType.AwaitExpression, argument: arg } as AwaitExpression;
             case TokenType.OpenBracket:
                 this.eat(); // eat [
                 const elements: Expression[] = [];
@@ -563,5 +566,59 @@ export class Parser {
                 process.exit(1);
                 throw new Error("Unexpected token");
         }
+    }
+
+    private parseBreakStatement(): Statement {
+        this.eat(); // eat break
+        this.expect(TokenType.SemiColon, "Expected ; after break statement.");
+        return { kind: NodeType.BreakStatement } as BreakStatement;
+    }
+
+    private parseImportStatement(): Statement {
+        this.eat(); // eat import
+        const pathToken = this.expect(TokenType.String, "Expected string after import statement.");
+        this.expect(TokenType.SemiColon, "Expected ; after import statement.");
+        return { kind: NodeType.ImportDeclaration, path: pathToken.value } as unknown as Statement;
+    }
+
+    private parseTryStatement(): Statement {
+        this.eat(); // eat try
+        this.expect(TokenType.OpenBrace, "Expected { after try");
+        const body: Statement[] = [];
+        while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
+            body.push(this.parseStatement());
+        }
+        this.expect(TokenType.CloseBrace, "Expected } after try block");
+
+        const catchBody: Statement[] = [];
+        let catchParam: string | undefined;
+
+        if (this.at().type === TokenType.Catch) {
+            this.eat(); // eat catch
+            if (this.at().type === TokenType.OpenParen) {
+                this.eat();
+                catchParam = this.expect(TokenType.Identifier, "Expected identifier for catch error").value;
+                this.expect(TokenType.CloseParen, "Expected ) after catch param");
+            }
+
+            this.expect(TokenType.OpenBrace, "Expected { after catch");
+            while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
+                catchBody.push(this.parseStatement());
+            }
+            this.expect(TokenType.CloseBrace, "Expected } after catch block");
+        }
+
+        let finallyBody: Statement[] | undefined;
+        if (this.at().type === TokenType.Finally) {
+            this.eat(); // eat finally
+            this.expect(TokenType.OpenBrace, "Expected { after finally");
+            finallyBody = [];
+            while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
+                finallyBody.push(this.parseStatement());
+            }
+            this.expect(TokenType.CloseBrace, "Expected } after finally block");
+        }
+
+        return { kind: NodeType.TryStatement, body, catchBody, catchParam, finallyBody } as TryStatement;
     }
 }

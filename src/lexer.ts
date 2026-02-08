@@ -110,6 +110,7 @@ export function tokenize(source: string): Token[] {
             case '-': tokens.push({ type: TokenType.Minus, value: "-", line }); break;
             case '*': tokens.push({ type: TokenType.Multiply, value: "*", line }); break;
             case '/': tokens.push({ type: TokenType.Divide, value: "/", line }); break;
+            case '%': tokens.push({ type: TokenType.Modulo, value: "%", line }); break;
             case '<': tokens.push({ type: TokenType.Less, value: "<", line }); break;
             case '>': tokens.push({ type: TokenType.Greater, value: ">", line }); break;
             default:

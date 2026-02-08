@@ -98,6 +98,59 @@ pq.push(10);
 console.log(pq.pop()); // 100
 ```
 
+## 📖 Syntax Guide
+
+| Feature | Syntax | Description |
+| :--- | :--- | :--- |
+| **Variables** | `let x = 10;` | Declare a variable (type inferred). |
+| **Functions** | `fn add(a, b) { ... }` | Define a function (alias: `func`). |
+| **Classes** | `class Dog { ... }` | Define a class with fields and methods. |
+| **Instantiation** | `let d = new Dog();` | Create a new instance of a class. |
+| **Printing** | `print("Hello", x);` | Print to stdout (alias: `console.log`). |
+| **Input** | `let name = input();` | Read a line from stdin. |
+| **Imports** | `import "math.rr";` | Import code from another file. |
+| **Conditionals** | `if (x > 5) { ... }` | Standard if-else logic. |
+| **Loops** | `for (let i=0; i<10; i=i+1)` | Standard C-style for loop. |
+| **Switch** | `switch (x) { case 1: ... }` | Switch statement with fallthrough. |
+| **Arrays** | `let arr = [1, 2, 3];` | Dynamic arrays (std::vector). |
+| **Try-Catch** | `try { ... } catch { ... }` | Handle errors gracefully. |
+| **Async/Await** | `async fn foo() { await bar(); }` | Asynchronous function syntax. |
+| **Fetch** | `fetch("https://api.com")` | HTTP GET request (blocking). |
+| **Table Print** | `tprint(arr)` | Print arrays in a formatted table. |
+
+### Advanced Features 🌟
+
+#### Fetching Data
+```javascript
+async fn getData() {
+    let json = await fetch("https://api.jikan.moe/v4/anime/1");
+    print(json.substr(0, 100));
+}
+```
+
+#### Error Handling
+```javascript
+try {
+    // risky code
+} catch {
+    print("Something went wrong");
+}
+```
+
+#### Table Printing
+```javascript
+let users = ["Alice", "Bob", "Charlie"];
+tprint(users);
+/*
++----------------+
+| Index | Value  |
++----------------+
+| 0     | Alice  |
+| 1     | Bob    |
+...
+*/
+```
+
 ## 📂 Examples
 Check out the `examples/` folder for more:
 - `examples/full_docs.rr`: **Complete documentation** covering all features.

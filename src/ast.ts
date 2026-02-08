@@ -4,6 +4,7 @@ export enum NodeType {
     VariableDeclaration,
     FunctionDeclaration,
     ClassDeclaration,
+    ImportDeclaration,
     ReturnStatement,
     IfStatement,
     WhileStatement,
@@ -21,7 +22,9 @@ export enum NodeType {
     Identifier,
     NumericLiteral,
     StringLiteral,
-    ThisExpression
+    ThisExpression,
+    TryStatement,
+    AwaitExpression
 }
 
 export interface Statement {
@@ -51,6 +54,7 @@ export interface FunctionDeclaration extends Statement {
     name: string;
     params: string[];
     body: Statement[];
+    async: boolean;
 }
 
 export interface ReturnStatement extends Statement {
@@ -150,4 +154,22 @@ export interface CaseClause {
 
 export interface BreakStatement extends Statement {
     kind: NodeType.BreakStatement;
+}
+
+export interface ImportStatement extends Statement {
+    kind: NodeType.ImportDeclaration;
+    path: string;
+}
+
+export interface TryStatement extends Statement {
+    kind: NodeType.TryStatement;
+    body: Statement[];
+    catchBody: Statement[];
+    catchParam?: string; // e.g. catch (e)
+    finallyBody?: Statement[];
+}
+
+export interface AwaitExpression extends Expression {
+    kind: NodeType.AwaitExpression;
+    argument: Expression;
 }

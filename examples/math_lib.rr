@@ -1,0 +1,17 @@
+// math_lib.rr
+fn add(a, b) {
+    return a + b;
+}
+
+fn subtract(a, b) {
+    return a - b;
+}
+
+class Calculator {
+    let result = 0;
+
+    fn multiply(x) {
+        this.result = this.result * x;
+        return this.result;
+    }
+}

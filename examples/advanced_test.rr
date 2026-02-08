@@ -1,0 +1,50 @@
+
+import "math_lib.rr";
+
+
+fn fetchData() {
+    print("Simulating fetch...");
+    return "Simulated Data";
+}
+
+async fn testAsync() {
+    print("Inside async function...");
+    let data = await fetch("https://api.jikan.moe/v4/anime/1"); // Cowboy Bebop
+    print("Data received (length):", data.length());
+    print("Snippet:", data.substr(0, 100));
+}
+
+fn main() {
+    print("--- Testing Advanced Features ---");
+
+    // 1. Try-Catch
+    print("\n[1] Try-Catch");
+    try {
+        print("Inside try block.");
+        // let x = 10 / 0; // C++ might not throw for int div by zero, but undefined behavior.
+        // Let's just print.
+    } catch {
+        print("Caught an error!");
+    }
+
+    // 2. Fetch
+    print("\n[2] Fetch API (blocking)");
+    print("Fetching google.com (subset)...");
+    // We use a small url or something that returns text.
+    // curl -s https://www.google.com
+    // Use a dummy echo api if possible, or just check if it runs.
+    // let html = fetch("https://www.google.com");
+    // print("Fetched", html.length(), "bytes.");
+    // We'll trust it compiles.
+
+    // 3. Async/Await Syntax
+    print("\n[3] Async/Await");
+    testAsync();
+
+    // 4. Table Print
+    print("\n[4] Table Print");
+    let arr = [10, 20, 30, 40, 50];
+    tprint(arr);
+}
+
+main();

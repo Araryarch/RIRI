@@ -1,0 +1,76 @@
+
+// RiriLang QA Stress Test
+// "Coba hal nyeleneh"
+
+// 1. Recursion / Stack Test
+fn factorial(n) {
+    if (n <= 1) { return 1; }
+    return n * factorial(n - 1);
+}
+
+// 2. OOP & State
+class Counter {
+    let count = 0;
+    fn inc() {
+        this.count = this.count + 1;
+        print("Count:", this.count);
+    }
+}
+
+// 3. Async & Network Error Handling
+async fn breakTheInternet() {
+    print("\n--- Network Handling ---");
+    try {
+        // Invalid URL
+        let res = await fetch("https://invalid-url-that-does-not-exist.xyz");
+        print("Fetch result (should be ERROR or empty):", res);
+    } catch {
+        print("Network error caught!");
+    }
+}
+
+// 4. Data Structure Stress
+fn stressTrees() {
+    print("\n--- Tree Stress Test ---");
+    let tree = new AVL();
+    // Insert random-ish numbers
+    for (let i=0; i<20; i=i+1) {
+        // Simple pseudo-random: (i * 37) % 50
+        let val = (i * 37) % 50; 
+        tree.insert(val);
+    }
+    print("AVL In-Order:");
+    tree.printInOrder();
+}
+
+fn main() {
+    print("==== RIRI LANG STRESS TEST ====");
+
+    // Test 1: Math & Recursion
+    print("\n[1] Math & Recursion (Factorial 10)");
+    print("Result:", factorial(10)); // Should be 3628800
+
+    // Test 2: Objects
+    print("\n[2] OOP State");
+    let c = new Counter();
+    c.inc();
+    c.inc();
+    c.inc();
+
+    // Test 3: Arrays & Type Chaos?
+    print("\n[3] Array & 'Nyeleneh' Types");
+    let arr = [1, 2, 3];
+    // Riri doesn't support mixed types in vectors efficiently yet (std::vector<int> hardcoded in codegen)
+    // So let's try to break output
+    tprint(arr);
+    
+    // Test 4: Trees
+    stressTrees();
+
+    // Test 5: Async & Error
+    breakTheInternet();
+
+    print("\n==== TEST COMPLETE ====");
+}
+
+main();

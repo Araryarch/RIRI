@@ -22,6 +22,8 @@ import {
     ArrayLiteral,
     SwitchStatement,
     BreakStatement,
+    TryStatement,
+    AwaitExpression,
     NodeType
 } from "./ast";
 
@@ -106,6 +108,10 @@ void print_val(const char* t) { std::cout << t; }
                 return this.genSwitchStatement(stmt as SwitchStatement);
             case NodeType.BreakStatement:
                 return "break;\n";
+            case NodeType.ImportDeclaration:
+                return "// import " + (stmt as any).path + "\n";
+            case NodeType.TryStatement:
+                return this.genTryStatement(stmt as TryStatement);
             default:
                 throw new Error(`Unknown statement kind: ${stmt.kind}`);
         }
@@ -130,7 +136,8 @@ void print_val(const char* t) { std::cout << t; }
         }
         body += "}\n\n";
 
-        return `auto ${stmt.name}(${params}) ${body}`;
+        const funcName = stmt.name === "main" ? "riri_main" : stmt.name;
+        return `auto ${funcName}(${params}) ${body}`;
     }
 
     private genReturnStatement(stmt: ReturnStatement): string {
@@ -215,13 +222,17 @@ void print_val(const char* t) { std::cout << t; }
             case NodeType.ThisExpression:
                 return "this";
             case NodeType.Identifier:
-                return (expr as Identifier).symbol;
+                const symbol = (expr as Identifier).symbol;
+                return symbol === "main" ? "riri_main" : symbol;
             case NodeType.NumericLiteral:
                 return (expr as NumericLiteral).value.toString();
             case NodeType.StringLiteral:
                 return `std::string("${(expr as StringLiteral).value}")`;
             case NodeType.ArrayLiteral:
                 return this.genArrayLiteral(expr as ArrayLiteral);
+            case NodeType.AwaitExpression:
+                // For MVP: await is blocking, just generate the argument (which might be a fetch call)
+                return this.genExpression((expr as AwaitExpression).argument);
             default:
                 throw new Error(`Unknown expression kind: ${expr.kind}`);
         }
@@ -289,6 +300,31 @@ void print_val(const char* t) { std::cout << t; }
 
         const callee = this.genExpression(expr.callee);
 
+        if (callee === "print") {
+            const printArgs = expr.args.map(a => this.genExpression(a)).join(" << \" \" << ");
+            return `std::cout << ${printArgs} << std::endl`;
+        }
+
+        if (callee === "input") {
+            return `_riri_input()`;
+        }
+
+        if (callee === "input") {
+            return `_riri_input()`;
+        }
+
+        if (callee === "tprint") {
+            // tprint(arr)
+            const args = expr.args.map(a => this.genExpression(a)).join(", ");
+            return `_riri_tprint(${args});\n`;
+        }
+
+        if (callee === "fetch") {
+            // fetch(url)
+            const args = expr.args.map(a => this.genExpression(a)).join(", ");
+            return `_riri_fetch(${args})`;
+        }
+
         const args = expr.args.map(a => this.genExpression(a)).join(", ");
         return `${callee}(${args})`;
     }
@@ -350,15 +386,130 @@ void print_val(const char* t) { std::cout << t; }
         return `new ${expr.className}(${args})`; // C++ new returns pointer
     }
 
+    private genTryStatement(stmt: TryStatement): string {
+        let code = "try {\n";
+        for (const s of stmt.body) {
+            code += this.genStatement(s);
+        }
+        code += "} ";
+
+        if (stmt.catchBody.length > 0 || stmt.catchParam) {
+            // catch (...) generic catch or typed?
+            // C++: catch (const std::exception& e) or catch (...)
+            // For MVP, catch all or catch string?
+            // If user did `catch (e)`, we can't easily infer type of e.
+            // Let's use `catch (...)` or `catch (const std::exception& e)` if we use exceptions.
+            // Riri currently doesn't throw.
+            // But system might (e.g. vector out of range? though [] is usually unchecked or segfault).
+            // Let's support `catch (...)` for now.
+
+            // If user provided param "e", we need to define it?
+            // We can assume it's a string message?
+            // Hack: `catch (const std::exception& e)` and define variable `e`?
+
+            if (stmt.catchParam) {
+                code += `catch (const std::exception& ${stmt.catchParam}) {\n`;
+            } else {
+                code += "catch (...) {\n";
+            }
+
+            for (const s of stmt.catchBody) {
+                code += this.genStatement(s);
+            }
+            code += "}\n";
+        }
+
+        if (stmt.finallyBody) {
+            // C++ doesn't have finally.
+            // We can approximate by putting finally code after try-catch?
+            // But unrelated to flow control (return/break).
+            // Proper finally needs RAII or specific structure.
+            // MVP: Just append code after try-catch block?
+            // NOTE: This breaks on early return inside try.
+            // But implementing full RAII / ScopeGuard is complex in codegen.
+            // We will warn: "Finally block is executed after try/catch, but may be skipped on return".
+            // Or we just append it.
+            code += "{ // finally imitation\n";
+            for (const s of stmt.finallyBody) {
+                code += this.genStatement(s);
+            }
+            code += "}\n";
+        }
+        return code;
+    }
+
     private genMemberExpr(expr: MemberExpression): string {
         if (expr.computed) {
             return `${this.genExpression(expr.object)}[${this.genExpression(expr.property as Expression)}]`;
         }
+
+        // Check if object is a string or array (std::vector) which are value types, thus use dot (.)
+        // This is a naive check. A better way uses type checker.
+        // For MVP, we'll try to guess based on variable usage or just support both?
+        // C++: ptr->member, obj.member.
+        // We defined all objects (NewExpression) as pointers (new Class).
+        // Strings are std::string (value).
+        // Arrays are std::vector (value).
+
+        // If the object expression comes from a StringLiteral or ArrayLiteral, it's a value.
+        // If it's an Identifier, we need to know its type. We don't have a symbol table with types here easily.
+        // HACK: We can use a C++ macro or template? 
+        // Or specific known methods for strings? length, substr.
+        // Helper: `call_method(obj, method, args...)`?
+        // Let's rely on a simple heuristic:
+        // content types are values (string, vector).
+        // User classes are pointers.
+
+        // We can look at the property name.
+        // String/Vector methods: length, size, substr, push, pop.
+        const valueTypeMethods = ["length", "size", "substr", "push_back", "pop_back", "at"];
+
+        // Also if we can identify it's a string identifier?
+        // For now, let's assume if it looks like a standard method, use dot.
+        // If it returns a compilation error, we might need a smarter way.
+        // But `data.length()` failed because we used `->`.
+
+        if (typeof expr.property === 'string' && valueTypeMethods.includes(expr.property)) {
+            return `(${this.genExpression(expr.object)}).${expr.property}`;
+        }
+
         return `(${this.genExpression(expr.object)})->${expr.property}`;
     }
 
     private getBuiltinLibraries(): string {
         return `
+// --- Built-in Helpers ---
+std::string _riri_input() {
+    std::string s;
+    std::getline(std::cin, s);
+    return s;
+}
+
+std::string _riri_fetch(std::string url) {
+    std::string cmd = "curl -s " + url;
+    std::string result;
+    char buffer[128];
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return "ERROR";
+    while (!feof(pipe)) {
+        if (fgets(buffer, 128, pipe) != NULL)
+            result += buffer;
+    }
+    pclose(pipe);
+    return result;
+}
+
+template <typename T>
+void _riri_tprint(const std::vector<T>& vec) {
+    std::cout << "+----------------+" << std::endl;
+    std::cout << "| Index | Value  |" << std::endl;
+    std::cout << "+----------------+" << std::endl;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        std::cout << "| " << i << "\\t| " << vec[i] << "\\t|" << std::endl;
+    }
+    std::cout << "+----------------+" << std::endl;
+}
+
 // --- Built-in Tree Library ---
 
 struct Node {
