@@ -1,0 +1,29 @@
+// Test: Ternary Operator
+print("Test: Ternary Operator");
+
+let a = 10;
+let b = 20;
+
+// Basic ternary
+let max = a > b ? a : b;
+print("Max of", a, "and", b, "is", max);
+
+// Nested ternary
+let grade = 85;
+let result = grade >= 90 ? "A" : grade >= 80 ? "B" : grade >= 70 ? "C" : "F";
+print("Grade", grade, "is", result);
+
+// Ternary in expression
+let x = 5;
+let y = (x > 0 ? x : -x) * 2;
+print("Absolute value of", x, "times 2 is", y);
+
+// Ternary with boolean
+let isPositive = x > 0 ? 1 : 0;
+print("Is", x, "positive?", isPositive);
+
+if (max == 20 && result == "B" && y == 10 && isPositive == 1) {
+    print("ALL TESTS PASSED");
+} else {
+    print("FAIL");
+}

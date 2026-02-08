@@ -55,6 +55,7 @@ export enum TokenType {
     Comma, // ,
     Dot, // .
     Colon, // :
+    Question, // ?
     Arrow, // =>
 
     EOF // End of File

@@ -1,0 +1,21 @@
+Found 16 tests in /home/ararya/Documents/riri-lang/tests
+
+Testing 01_basics.rr... ✅ PASS
+Testing 02_flow.rr... ✅ PASS
+Testing 03_funcs.rr... ✅ PASS
+Testing 04_arrays_strings.rr... ✅ PASS
+Testing 05_math.rr... ✅ PASS
+Testing 06_oop.rr... ✅ PASS
+Testing 07_structs.rr... ✅ PASS
+Testing 08_errors.rr... ✅ PASS
+Testing 09_arrow.rr... ✅ PASS
+Testing 10_builtins.rr... ✅ PASS
+Testing 11_graph.rr... ✅ PASS
+Testing 12_regex.rr... ✅ PASS
+Testing 13_gc.rr... ✅ PASS
+Testing 19_api.rr... ✅ PASS
+Testing 20_array_methods.rr... ✅ PASS
+Testing 21_ternary.rr... ✅ PASS
+
+==============================
+Results: 16 PASSED, 0 FAILED

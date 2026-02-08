@@ -27,6 +27,7 @@ import {
     AwaitExpression,
     UnaryExpression,
     ArrowFunctionExpression,
+    ConditionalExpression,
     NodeType
 } from "./ast";
 
@@ -413,6 +414,9 @@ void print_val(const char* t) { std::cout << t; }
                 return `(${(expr as any).operator}${this.genExpression((expr as any).argument)})`;
             case NodeType.ArrowFunctionExpression:
                 return this.genArrowFunction(expr as ArrowFunctionExpression);
+            case NodeType.ConditionalExpression:
+                const cond = expr as ConditionalExpression;
+                return `(${this.genExpression(cond.test)} ? ${this.genExpression(cond.consequent)} : ${this.genExpression(cond.alternate)})`;
             default:
                 throw new Error(`Unknown expression kind: ${expr.kind}`);
         }
@@ -594,6 +598,12 @@ void print_val(const char* t) { std::cout << t; }
         if (expr.callee.kind === NodeType.MemberExpression) {
             const member = expr.callee as MemberExpression;
             const method = member.property;
+
+            // Special case: length() - genMemberExpr already adds ()
+            if (method === "length") {
+                // genMemberExpr returns obj.size() already
+                return this.genMemberExpr(member);
+            }
 
             // Array methods with callbacks
             if (method === "map") {
@@ -952,6 +962,8 @@ void print_val(const char* t) { std::cout << t; }
             if (expr.property === "length") {
                 // Arrays/Vectors in C++ use .size()
                 // Strings use .length() or .size()
+                // In JavaScript, .length is a property, but in C++ it's a method
+                // So we always return with () since C++ needs it
                 return `${this.genExpression(expr.object)}.size()`;
             }
 

@@ -28,6 +28,7 @@ import {
     AwaitExpression,
     UnaryExpression,
     ArrowFunctionExpression,
+    ConditionalExpression,
     NodeType
 } from "./ast";
 import { Token, TokenType } from "./tokens";
@@ -421,7 +422,7 @@ export class Parser {
     }
 
     private parseAssignmentExpr(): Expression {
-        const left = this.parseLogicalOrExpr();
+        const left = this.parseConditionalExpr();
 
         if (this.at().type == TokenType.Equals) {
             this.eat(); // advance past equals
@@ -430,6 +431,26 @@ export class Parser {
         }
 
         return left;
+    }
+
+    private parseConditionalExpr(): Expression {
+        // Ternary: condition ? consequent : alternate
+        const test = this.parseLogicalOrExpr();
+
+        if (this.at().type === TokenType.Question) {
+            this.eat(); // consume ?
+            const consequent = this.parseAssignmentExpr();
+            this.expect(TokenType.Colon, "Expected ':' in ternary expression");
+            const alternate = this.parseConditionalExpr();
+            return {
+                kind: NodeType.ConditionalExpression,
+                test,
+                consequent,
+                alternate
+            } as ConditionalExpression;
+        }
+
+        return test;
     }
 
     private parseLogicalOrExpr(): Expression {

@@ -27,7 +27,8 @@ export enum NodeType {
     ThisExpression = "ThisExpression",
     AwaitExpression = "AwaitExpression",
     UnaryExpression = "UnaryExpression",
-    ArrowFunctionExpression = "ArrowFunctionExpression"
+    ArrowFunctionExpression = "ArrowFunctionExpression",
+    ConditionalExpression = "ConditionalExpression"  // Ternary: condition ? true : false
 }
 
 export interface Statement {
@@ -194,4 +195,11 @@ export interface ArrowFunctionExpression extends Expression {
     params: string[];
     body: Statement[] | Expression;
     isExpression: boolean; // true if body is single expression
+}
+
+export interface ConditionalExpression extends Expression {
+    kind: NodeType.ConditionalExpression;
+    test: Expression;        // condition
+    consequent: Expression;  // true branch
+    alternate: Expression;   // false branch
 }

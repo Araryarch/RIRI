@@ -166,6 +166,7 @@ export function tokenize(source: string): Token[] {
             case '%': tokens.push({ type: TokenType.Modulo, value: "%", line }); break;
             case '<': tokens.push({ type: TokenType.Less, value: "<", line }); break;
             case '>': tokens.push({ type: TokenType.Greater, value: ">", line }); break;
+            case '?': tokens.push({ type: TokenType.Question, value: "?", line }); break;
             default:
                 console.error(`Unexpected character: '${char}' at line ${line}`);
                 process.exit(1);
