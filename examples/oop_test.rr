@@ -1,0 +1,19 @@
+class Dog {
+  let name = "Puppy";
+  let age = 0;
+
+  func bark() {
+    console.log("Woof! My name is");
+    console.log(this.name);
+  }
+
+  func setAge(newAge) {
+    this.age = newAge;
+  }
+}
+
+let d = new Dog();
+d.bark();
+d.setAge(5);
+console.log("Age is:");
+console.log(d.age);

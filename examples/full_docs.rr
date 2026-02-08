@@ -1,0 +1,178 @@
+// ==========================================
+// RiriLang Comprehensive Documentation
+// ==========================================
+
+// 1. Variables & Types
+// --------------------
+// Variables are declared using 'let'. Types are inferred (auto).
+console.log("--- 1. Variables ---");
+let x = 10;
+let name = "Riri";
+let pi = 3.14159;
+
+console.log(name);
+console.log(x);
+
+
+// 2. Control Flow
+// ---------------
+// Standard if-else, while, for loops, and switch-case.
+
+console.log("--- 2. Control Flow ---");
+
+// If-Else
+if (x > 5) {
+    console.log("x is greater than 5");
+} else {
+    console.log("x is small");
+}
+
+// While Loop
+let i = 0;
+console.log("While Loop:");
+while (i < 3) {
+    console.log(i);
+    i = i + 1;
+}
+
+// For Loop
+console.log("For Loop:");
+for (let j = 0; j < 3; j = j + 1) {
+    console.log(j);
+}
+
+// Switch Case
+console.log("Switch Case:");
+let option = 2;
+switch (option) {
+    case 1: {
+        console.log("Option 1 selected");
+        break;
+    }
+    case 2: {
+        console.log("Option 2 selected");
+        break;
+    }
+    default: {
+        console.log("Default option");
+    }
+}
+
+
+// 3. Arrays
+// ---------
+// Arrays uses C++ std::vector under the hood.
+console.log("--- 3. Arrays ---");
+let numbers = [10, 20, 30, 40, 50];
+console.log("Element at index 2:");
+console.log(numbers[2]);
+
+
+// 4. Math Library
+// ---------------
+// Access standard math functions.
+console.log("--- 4. Math ---");
+console.log("Sin(0):");
+console.log(Math.sin(0));
+console.log("Sqrt(16):");
+console.log(Math.sqrt(16));
+
+
+// 5. Functions
+// ------------
+// Functions are declared with 'func'. Return types are inferred.
+console.log("--- 5. Functions ---");
+
+func add(a, b) {
+    return a + b;
+}
+
+let sum = add(5, 7);
+console.log("Sum of 5 + 7 is:");
+console.log(sum);
+
+
+// 6. Object Oriented Programming (OOP)
+// ------------------------------------
+// Classes, Methods, Fields, 'this', and 'new'.
+
+console.log("--- 6. OOP ---");
+
+class PersistData {
+    let id = 0;
+    let label = "null";
+
+    func setData(id, label) {
+        this.id = id;
+        this.label = label;
+    }
+
+    func print() {
+        console.log("ID:");
+        console.log(this.id);
+        console.log("Label:");
+        console.log(this.label);
+    }
+}
+
+let data = new PersistData();
+data.setData(101, "UserSession");
+data.print();
+
+
+// 7. Data Structures (Built-in)
+// -----------------------------
+// RiriLang comes with high-performance C++ implementations of common data structures.
+
+console.log("--- 7. Data Structures ---");
+
+// A. Binary Search Tree (BST)
+console.log("Binary Search Tree (BST):");
+let myBST = new BST();
+myBST.insert(50);
+myBST.insert(30);
+myBST.insert(20);
+myBST.insert(40);
+myBST.insert(70);
+myBST.insert(60);
+myBST.insert(80);
+
+console.log("In-order Traversal:");
+myBST.printInOrder();
+
+if (myBST.search(60)) {
+    console.log("Found 60 in BST!");
+}
+
+// B. AVL Tree (Self-Balancing)
+console.log("AVL Tree:");
+let myAVL = new AVL();
+myAVL.insert(10);
+myAVL.insert(20);
+myAVL.insert(30); // Triggers rotation
+myAVL.insert(40);
+myAVL.insert(50);
+myAVL.insert(25);
+
+console.log("AVL In-order (Balanced):");
+myAVL.printInOrder();
+
+// C. Heap (Max Heap / Priority Queue)
+console.log("Max Heap:");
+let myHeap = new Heap();
+myHeap.push(10);
+myHeap.push(30);
+myHeap.push(20);
+myHeap.push(5);
+myHeap.push(1);
+
+console.log("Top element (Max):");
+console.log(myHeap.top()); // Should be 30
+
+console.log("Pop max:");
+console.log(myHeap.pop()); // Removes 30
+
+console.log("New Top:");
+console.log(myHeap.top()); // Should be 20
+
+console.log("--- End of Documentation ---");

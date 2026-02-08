@@ -1,0 +1,22 @@
+func add(a, b) {
+    return a + b;
+}
+
+let i = 0;
+while (i < 3) {
+    console.log("While Loop:", i);
+    i = i + 1;
+}
+
+for (let j = 0; j < 3; j = j + 1) {
+    console.log("For Loop:", j);
+}
+
+let res = add(10, 20);
+console.log("Function Result:", res);
+
+if (res > 25) {
+    console.log("Result is > 25");
+} else {
+    console.log("Result is <= 25");
+}

@@ -1,0 +1,26 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.NodeType = void 0;
+var NodeType;
+(function (NodeType) {
+    NodeType[NodeType["Program"] = 0] = "Program";
+    NodeType[NodeType["VariableDeclaration"] = 1] = "VariableDeclaration";
+    NodeType[NodeType["FunctionDeclaration"] = 2] = "FunctionDeclaration";
+    NodeType[NodeType["ClassDeclaration"] = 3] = "ClassDeclaration";
+    NodeType[NodeType["ReturnStatement"] = 4] = "ReturnStatement";
+    NodeType[NodeType["IfStatement"] = 5] = "IfStatement";
+    NodeType[NodeType["WhileStatement"] = 6] = "WhileStatement";
+    NodeType[NodeType["ForStatement"] = 7] = "ForStatement";
+    NodeType[NodeType["SwitchStatement"] = 8] = "SwitchStatement";
+    NodeType[NodeType["BreakStatement"] = 9] = "BreakStatement";
+    NodeType[NodeType["ExpressionStatement"] = 10] = "ExpressionStatement";
+    NodeType[NodeType["BinaryExpression"] = 11] = "BinaryExpression";
+    NodeType[NodeType["CallExpression"] = 12] = "CallExpression";
+    NodeType[NodeType["MemberExpression"] = 13] = "MemberExpression";
+    NodeType[NodeType["NewExpression"] = 14] = "NewExpression";
+    NodeType[NodeType["ArrayLiteral"] = 15] = "ArrayLiteral";
+    NodeType[NodeType["Identifier"] = 16] = "Identifier";
+    NodeType[NodeType["NumericLiteral"] = 17] = "NumericLiteral";
+    NodeType[NodeType["StringLiteral"] = 18] = "StringLiteral";
+    NodeType[NodeType["ThisExpression"] = 19] = "ThisExpression";
+})(NodeType || (exports.NodeType = NodeType = {}));

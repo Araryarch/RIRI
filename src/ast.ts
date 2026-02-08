@@ -1,0 +1,153 @@
+
+export enum NodeType {
+    Program,
+    VariableDeclaration,
+    FunctionDeclaration,
+    ClassDeclaration,
+    ReturnStatement,
+    IfStatement,
+    WhileStatement,
+    ForStatement,
+    SwitchStatement,
+    BreakStatement,
+    ExpressionStatement,
+
+    BinaryExpression,
+    CallExpression,
+    MemberExpression, // obj.prop
+    NewExpression, // new Class()
+    ArrayLiteral, // [1, 2]
+
+    Identifier,
+    NumericLiteral,
+    StringLiteral,
+    ThisExpression
+}
+
+export interface Statement {
+    kind: NodeType;
+}
+
+export interface Program extends Statement {
+    kind: NodeType.Program;
+    body: Statement[];
+}
+
+export interface ClassDeclaration extends Statement {
+    kind: NodeType.ClassDeclaration;
+    name: string;
+    methods: FunctionDeclaration[];
+    fields: VariableDeclaration[];
+}
+
+export interface VariableDeclaration extends Statement {
+    kind: NodeType.VariableDeclaration;
+    identifier: string;
+    value?: Expression;
+}
+
+export interface FunctionDeclaration extends Statement {
+    kind: NodeType.FunctionDeclaration;
+    name: string;
+    params: string[];
+    body: Statement[];
+}
+
+export interface ReturnStatement extends Statement {
+    kind: NodeType.ReturnStatement;
+    value: Expression;
+}
+
+export interface ExpressionStatement extends Statement {
+    kind: NodeType.ExpressionStatement;
+    expression: Expression;
+}
+
+export interface IfStatement extends Statement {
+    kind: NodeType.IfStatement;
+    condition: Expression;
+    thenBranch: Statement[];
+    elseBranch?: Statement[];
+}
+
+export interface WhileStatement extends Statement {
+    kind: NodeType.WhileStatement;
+    condition: Expression;
+    body: Statement[];
+}
+
+export interface ForStatement extends Statement {
+    kind: NodeType.ForStatement;
+    init?: Statement;
+    condition?: Expression;
+    update?: Expression;
+    body: Statement[];
+}
+
+export interface Expression extends Statement { }
+
+export interface BinaryExpression extends Expression {
+    kind: NodeType.BinaryExpression;
+    left: Expression;
+    right: Expression;
+    operator: string;
+}
+
+export interface CallExpression extends Expression {
+    kind: NodeType.CallExpression;
+    callee: Expression;
+    args: Expression[];
+}
+
+export interface Identifier extends Expression {
+    kind: NodeType.Identifier;
+    symbol: string;
+}
+
+export interface NumericLiteral extends Expression {
+    kind: NodeType.NumericLiteral;
+    value: number;
+}
+
+export interface StringLiteral extends Expression {
+    kind: NodeType.StringLiteral;
+    value: string;
+}
+
+export interface NewExpression extends Expression {
+    kind: NodeType.NewExpression;
+    className: string;
+    args: Expression[];
+}
+
+export interface MemberExpression extends Expression {
+    kind: NodeType.MemberExpression;
+    object: Expression;
+    property: string | Expression;
+    computed: boolean;
+}
+
+export interface ThisExpression extends Expression {
+    kind: NodeType.ThisExpression;
+}
+
+export interface ArrayLiteral extends Expression {
+    kind: NodeType.ArrayLiteral;
+    elements: Expression[];
+}
+
+export interface SwitchStatement extends Statement {
+    kind: NodeType.SwitchStatement;
+    discriminant: Expression;
+    cases: CaseClause[];
+    defaultCase?: Statement[];
+}
+
+export interface CaseClause {
+    test: Expression;
+    consequent: Statement[];
+}
+
+export interface BreakStatement extends Statement {
+    kind: NodeType.BreakStatement;
+}
