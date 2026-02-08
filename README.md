@@ -1,10 +1,10 @@
 # RiriLang 🚀
 
-A modern, JavaScript-like programming language that transpiles to high-performance C++20.
+A modern, high-performance programming language that transpiles directly to C++20.
 
 ## ✨ Features
 
-- **Familiar Syntax**: JavaScript-inspired syntax (`let`, `func`, `console.log`).
+- **Clean Syntax**: Intuitive and easy-to-read syntax (`let`, `func`, `console.log`).
 - **High Performance**: Transpiles directly to native C++ binaries.
 - **Built-in Data Structures**: First-class support for **BST**, **AVL Trees**, and **Heaps**.
 - **OOP Support**: Classes, methods, and fields.
@@ -17,7 +17,7 @@ A modern, JavaScript-like programming language that transpiles to high-performan
 
 ## 📦 Installation
 
-You can install RiriLang using the pre-built binaries from the [Releases](https://github.com/yourusername/riri-lang/releases) page.
+You can install RiriLang using the pre-built binaries from the [Releases](https://github.com/Araryarch/RIRI/releases) page.
 
 1.  Download the binary for your OS (Linux, Windows, macOS).
 2.  Add it to your PATH.
@@ -33,7 +33,7 @@ cd RIRI
 ./install.sh
 ```
 
-> **Note:** Make sure `~/.bun/bin` is in your environment PATH to use the `rrc` command globally.
+> **Note:** Make sure `~/.bun/bin` is in your environment PATH to use the `rrc` (**Riri Compiler**) command globally.
 > For **Fish shell**, add it via: `set -Ux fish_user_paths $HOME/.bun/bin $fish_user_paths`
 
 Everything is set! You can now use the `rrc` command from anywhere.
