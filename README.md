@@ -26,8 +26,8 @@ You can install RiriLang using the pre-built binaries from the [Releases](https:
 **Alternative (Build from Source):**
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/riri-lang.git
-cd riri-lang
+git clone https://github.com/Araryarch/RIRI.git
+cd RIRI
 
 # 2. Run the install script (uses Bun)
 ./install.sh
