@@ -9,6 +9,19 @@ import { CodeGenerator } from './codegen';
 
 function main() {
     const args = process.argv.slice(2);
+
+    // Check for g++ availability
+    try {
+        execSync('g++ --version', { stdio: 'ignore' });
+    } catch (e) {
+        console.warn("⚠️  Warning: 'g++' not found in PATH.");
+        console.warn("   RiriLang requires a C++20 compiler to build/run code.");
+        console.warn("   Please install g++ (e.g., 'sudo apt install g++' or MinGW on Windows).");
+        // We don't exit(1) because maybe they just want to 'show' code or 'test'? 
+        // But for 'run'/'build' it will fail.
+        // Let's just warn.
+    }
+
     if (args.length < 1) {
         printUsage();
         process.exit(1);

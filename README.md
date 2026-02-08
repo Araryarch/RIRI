@@ -17,8 +17,13 @@ A modern, JavaScript-like programming language that transpiles to high-performan
 
 ## 📦 Installation
 
-You can install RiriLang globally using the provided script:
+You can install RiriLang using the pre-built binaries from the [Releases](https://github.com/yourusername/riri-lang/releases) page.
 
+1.  Download the binary for your OS (Linux, Windows, macOS).
+2.  Add it to your PATH.
+3.  Ensure you have `g++` installed.
+
+**Alternative (Build from Source):**
 ```bash
 # 1. Clone the repository
 git clone https://github.com/yourusername/riri-lang.git
