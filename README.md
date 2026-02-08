@@ -98,25 +98,28 @@ pq.push(10);
 console.log(pq.pop()); // 100
 ```
 
-## 📖 Syntax Guide
-
-| Feature | Syntax | Description |
+### Control Flow
+| Syntax | Example | Description |
 | :--- | :--- | :--- |
-| **Variables** | `let x = 10;` | Declare a variable (type inferred). |
-| **Functions** | `fn add(a, b) { ... }` | Define a function (alias: `func`). |
-| **Classes** | `class Dog { ... }` | Define a class with fields and methods. |
-| **Instantiation** | `let d = new Dog();` | Create a new instance of a class. |
-| **Printing** | `print("Hello", x);` | Print to stdout (alias: `console.log`). |
-| **Input** | `let name = input();` | Read a line from stdin. |
-| **Imports** | `import "math.rr";` | Import code from another file. |
-| **Conditionals** | `if (x > 5) { ... }` | Standard if-else logic. |
-| **Loops** | `for (let i=0; i<10; i=i+1)` | Standard C-style for loop. |
-| **Switch** | `switch (x) { case 1: ... }` | Switch statement with fallthrough. |
-| **Arrays** | `let arr = [1, 2, 3];` | Dynamic arrays (std::vector). |
-| **Try-Catch** | `try { ... } catch { ... }` | Handle errors gracefully. |
-| **Async/Await** | `async fn foo() { await bar(); }` | Asynchronous function syntax. |
-| **Fetch** | `fetch("https://api.com")` | HTTP GET request (blocking). |
-| **Table Print** | `tprint(arr)` | Print arrays in a formatted table. |
+| `if` / `else` | `if (x > 0) { ... } else { ... }` | Conditional execution. |
+| `while` | `while (x < 10) { ... }` | Loop while condition is true. |
+| `for` | `for (let i=0; i<10; i+=1) { ... }` | C-style for loop. |
+| `switch` | `switch (x) { case 1: ... break; }` | Multi-way branching. |
+| `try` / `catch` | `try { ... } catch { ... }` | Handle runtime errors. |
+| `break` | `break;` | Exit loop or switch. |
+| `continue` | `continue;` | Skip to next loop iteration. |
+
+### Reserved Keywords
+`let`, `func`, `fn`, `return`, `class`, `new`, `this`, `if`, `else`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `import`, `try`, `catch`, `finally`, `async`, `await`.
+
+### CLI Usage
+RiriLang comes with a powerful CLI `rrc` (Riri Compiler).
+
+| Command | Description |
+| :--- | :--- |
+| `rrc run <file.rr>` | Compile and run the script in one go (Interpreter style). |
+| `rrc build <file.rr>` | Compile to a native binary (executable) in the current folder. |
+| `rrc <file.rr>` | Alias for `run`. |
 
 ### Advanced Features 🌟
 
@@ -156,6 +159,65 @@ Check out the `examples/` folder for more:
 - `examples/full_docs.rr`: **Complete documentation** covering all features.
 - `examples/tree_test.rr`: Demo of Tree data structures.
 - `examples/oop_test.rr`: Demo of Class usage.
+
+## 📚 API Reference
+
+### Global Functions
+- `print(args...)`: Print values to stdout.
+- `input()`: Read a string from stdin.
+- `tprint(query)`: Print array or string in table format.
+- `fetch(url)`: Perform a blocking HTTP GET request.
+- `sort(arr)`: Sort an array in-place (IntroSort).
+
+### Math Library
+| Function | Description |
+| :--- | :--- |
+| `Math.abs(x)` | Absolute value. |
+| `Math.ceil(x)` | Round up to nearest integer. |
+| `Math.floor(x)` | Round down to nearest integer. |
+| `Math.round(x)` | Round to nearest integer. |
+| `Math.max(a, b)` | Return larger of two values. |
+| `Math.min(a, b)` | Return smaller of two values. |
+| `Math.pow(base, exp)` | Power function. |
+| `Math.sqrt(x)` | Square root. |
+| `Math.log(x)` | Natural logarithm. |
+| `Math.exp(x)` | Exponential function (e^x). |
+| `Math.random()` | Random number between 0.0 and 1.0. |
+
+### Array Methods
+- `arr.push(val)`: Add element to end.
+- `arr.pop()`: Remove last element.
+- `arr.size()`: Get number of elements.
+- `arr.at(index)`: Get element at index with bounds checking.
+
+### String Methods
+- `str.length()`: Get string length.
+- `str.substr(pos, len)`: Get substring.
+- `str.at(index)`: Get character at index.
+
+### Data Structures (Built-in)
+RiriLang provides high-performance C++ implementations of common data structures.
+
+#### AVL Tree (Self-Balancing)
+```javascript
+let tree = new AVL();
+tree.insert(10);
+tree.printInOrder(); // Prints sorted keys
+```
+
+#### Binary Search Tree (BST)
+```javascript
+let tree = new BST();
+tree.insert(10);
+if (tree.search(10)) print("Found!");
+```
+
+#### Heap (Max Priority Queue)
+```javascript
+let pq = new Heap();
+pq.push(10);
+let max = pq.pop(); // 10
+```
 
 ## 📝 License
 MIT

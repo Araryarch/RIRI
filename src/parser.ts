@@ -25,6 +25,7 @@ import {
     ArrayLiteral,
     TryStatement,
     AwaitExpression,
+    UnaryExpression,
     NodeType
 } from "./ast";
 import { Token, TokenType } from "./tokens";
@@ -405,11 +406,11 @@ export class Parser {
     }
 
     private parseAdditiveExpr(): Expression {
-        let left = this.parseMultiplicitaveExpr();
+        let left = this.parseMultiplicativeExpr();
 
         while (this.at().value == "+" || this.at().value == "-") {
             const operator = this.eat().value;
-            const right = this.parseMultiplicitaveExpr();
+            const right = this.parseMultiplicativeExpr();
             left = {
                 kind: NodeType.BinaryExpression,
                 left,
@@ -421,12 +422,12 @@ export class Parser {
         return left;
     }
 
-    private parseMultiplicitaveExpr(): Expression {
-        let left = this.parseCallMemberExpr();
+    private parseMultiplicativeExpr(): Expression {
+        let left = this.parseUnaryExpr();
 
         while (this.at().value == "/" || this.at().value == "*" || this.at().value == "%") {
             const operator = this.eat().value;
-            const right = this.parseCallMemberExpr();
+            const right = this.parseUnaryExpr();
             left = {
                 kind: NodeType.BinaryExpression,
                 left,
@@ -436,6 +437,17 @@ export class Parser {
         }
 
         return left;
+    }
+
+    private parseUnaryExpr(): Expression {
+        // Handle unary minus: -5, -x
+        if (this.at().type === TokenType.Minus) {
+            const operator = this.eat().value;
+            const argument = this.parseUnaryExpr();
+            return { kind: NodeType.UnaryExpression, operator, argument } as UnaryExpression;
+        }
+
+        return this.parseCallMemberExpr();
     }
 
     private parseCallMemberExpr(): Expression {

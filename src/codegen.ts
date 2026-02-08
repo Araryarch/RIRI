@@ -24,6 +24,7 @@ import {
     BreakStatement,
     TryStatement,
     AwaitExpression,
+    UnaryExpression,
     NodeType
 } from "./ast";
 
@@ -35,7 +36,7 @@ export class CodeGenerator {
     }
 
     public generate(): string {
-        let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n\n";
+        let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n#include <cstdlib>\n#include <ctime>\n\n";
 
         // Helper for printing
         cppCode += `
@@ -80,6 +81,7 @@ void print_val(const char* t) { std::cout << t; }
 
         // Add main function
         cppCode += "int main() {\n";
+        cppCode += "std::srand(std::time(0));\n";
         for (const stmt of mainBody) {
             cppCode += stmt;
         }
@@ -233,6 +235,8 @@ void print_val(const char* t) { std::cout << t; }
             case NodeType.AwaitExpression:
                 // For MVP: await is blocking, just generate the argument (which might be a fetch call)
                 return this.genExpression((expr as AwaitExpression).argument);
+            case NodeType.UnaryExpression:
+                return `(${(expr as any).operator}${this.genExpression((expr as any).argument)})`;
             default:
                 throw new Error(`Unknown expression kind: ${expr.kind}`);
         }
@@ -244,16 +248,16 @@ void print_val(const char* t) { std::cout << t; }
 
     private genArrayLiteral(expr: ArrayLiteral): string {
         const elements = expr.elements.map(e => this.genExpression(e)).join(", ");
-        // deduce type?
-        // if empty or numbers, assume int
-        // if strings, string
-        // C++ vector init: std::vector<T>{...}
-        // Since we return `auto` in variables, we need to be careful.
-        // `{1, 2}` is initializer list. `auto x = {1, 2}` deduces `std::initializer_list`.
-        // We want `std::vector`.
-        // Hack: check first element type.
-        // MVP: int vector default.
-        return `std::vector<int>{${elements}}`;
+
+        let type = "int";
+        if (expr.elements.length > 0) {
+            const first = expr.elements[0];
+            if (first.kind === NodeType.StringLiteral) {
+                type = "std::string";
+            }
+        }
+
+        return `std::vector<${type}>{${elements}}`;
     }
 
     private genCallExpr(expr: CallExpression): string {
@@ -274,9 +278,12 @@ void print_val(const char* t) { std::cout << t; }
                 if (objName === "console" && member.property === "log") {
                     isConsoleLog = true;
                 } else if (objName === "Math") {
-                    // Map Math.sin -> std::sin
                     isMathCall = true;
-                    mathFunc = `std::${member.property}`;
+                    if (member.property === "random") {
+                        mathFunc = "((double)std::rand() / (RAND_MAX))";
+                    } else {
+                        mathFunc = `std::${member.property}`;
+                    }
                 }
             }
         }
@@ -294,6 +301,9 @@ void print_val(const char* t) { std::cout << t; }
         }
 
         if (isMathCall) {
+            if (mathFunc.includes("rand")) {
+                return mathFunc;
+            }
             const args = expr.args.map(a => this.genExpression(a)).join(", ");
             return `${mathFunc}(${args})`;
         }
@@ -323,6 +333,28 @@ void print_val(const char* t) { std::cout << t; }
             // fetch(url)
             const args = expr.args.map(a => this.genExpression(a)).join(", ");
             return `_riri_fetch(${args})`;
+        }
+
+        if (callee === "sort") {
+            // sort(arr) -> std::sort(arr.begin(), arr.end())
+            const arg = this.genExpression(expr.args[0]);
+            return `std::sort(${arg}.begin(), ${arg}.end())`;
+        }
+
+        // Handle .push() and .pop() specifically to support both Vectors and Heaps
+        if (expr.callee.kind === NodeType.MemberExpression) {
+            const member = expr.callee as MemberExpression;
+            if (member.property === "push") {
+                // riri_push(obj, val)
+                const obj = this.genExpression(member.object);
+                const arg = this.genExpression(expr.args[0]);
+                return `_riri_push(${obj}, ${arg})`;
+            }
+            if (member.property === "pop") {
+                // riri_pop(obj)
+                const obj = this.genExpression(member.object);
+                return `_riri_pop(${obj})`;
+            }
         }
 
         const args = expr.args.map(a => this.genExpression(a)).join(", ");
@@ -460,14 +492,87 @@ void print_val(const char* t) { std::cout << t; }
         // content types are values (string, vector).
         // User classes are pointers.
 
-        // We can look at the property name.
-        // String/Vector methods: length, size, substr, push, pop.
-        const valueTypeMethods = ["length", "size", "substr", "push_back", "pop_back", "at"];
+        // Helper to check if it's a known value type (string or vector)
+        // This is tricky without full type info.
+        // We can check if the method is unique to value types?
+        // std::vector has push_back, pop_back.
+        // String has length, substr.
+        // Heap has push, pop.
 
-        // Also if we can identify it's a string identifier?
-        // For now, let's assume if it looks like a standard method, use dot.
-        // If it returns a compilation error, we might need a smarter way.
-        // But `data.length()` failed because we used `->`.
+        // If it is 'push' or 'pop', it might be Heap (pointer) or Vector (value).
+        // Riri array methods are push/pop, mapped to push_back/pop_back for vector.
+        // But Heap struct has push/pop methods.
+
+        if (expr.property === "push" || expr.property === "pop") {
+            // It could be array or Heap.
+            // If it's Heap (User defined struct in C++), it is a pointer -> use ->
+            // If it's Array (std::vector), it is value -> use . and map to push_back/pop_back
+
+            // HACK: Check if the variable name implies it's a heap/tree? 
+            // Or check if it was defined with 'new'?
+            // We can't know for sure here.
+
+            // Let's try to map `push` -> `push_back` ONLY if we are sure it is a vector?
+            // Or providing a polyfill?
+            // Let's change the C++ `Heap` struct to use `push_back`? No, standard is `push`.
+
+            // Let's assume `push` on a bare identifier that isn't `new`ed is a vector?
+            // `let arr = [...]` -> value.
+            // `let h = new Heap()` -> pointer.
+
+            // Refined heuristic:
+            // If we use `.` it must be a value.
+            // If we use `->` it must be a pointer.
+
+            // If the property is `push` or `pop`:
+            // 1. If it's a vector, we want `.push_back`.
+            // 2. If it's a heap (ptr), we want `->push`.
+
+            // Can we compile `t.push` (dot) on a pointer? No. 
+            // Can we compile `t->push_back` on a vector? No.
+
+            // Let's blindly try to support Riri `push` for both.
+            // But we need to distinguish.
+            // What if we rename Heap methods to `insert` / `remove` to avoid collision? 
+            // Or what if we make Heap a value type?
+
+            // Structs are allocated with `new` -> returns pointer.
+            // Vectors are `std::vector` -> value.
+
+            // Let's check `expr.object`.
+            // If `expr.object` is a `NewExpression`, it's a pointer.
+            // If it is an `ArrayLiteral`, it's a value.
+            // If it is an Identifier... hard.
+
+            // Alternative:
+            // Change Vector to use `append` and `removeLast`?
+            // Or change Heap to `add` / `poll`?
+
+            // Let's change Heap methods in implicit lib to `add` and `poll` to avoid collision with standard vector push/pop concept?
+            // But `full_docs.rr` uses `push`.
+
+            // Okay, let's keep it simple:
+            // Force `push` -> `push_back` for vectors.
+            // But `Heap` is a struct.
+            // What if we generate a template helper `riri_push(obj, val)`?
+            // C++ overloading!
+
+            // Great idea.
+            // `riri_push(vec, val)` -> vec.push_back(val)
+            // `riri_push(heap, val)` -> heap->push(val)
+
+            // But `genCallExpr` handles the call `obj.push(x)`.
+            // It currently transforms to `obj.push(x)` or `obj->push(x)`.
+
+            // If we change `genMemberExpr` to returns a string...
+            // If we use the helper `riri_push`, we need to change `genCallExpr`, not `genMemberExpr` (mostly).
+
+            // Let's modify `genCallExpr` to intercept `push` and `pop`.
+
+            return `(${this.genExpression(expr.object)})->${expr.property}`;
+        }
+
+        const valueTypeMethods = ["length", "size", "substr", "at", "push_back", "pop_back"]; // Removed push/pop
 
         if (typeof expr.property === 'string' && valueTypeMethods.includes(expr.property)) {
             return `(${this.genExpression(expr.object)}).${expr.property}`;
@@ -483,6 +588,35 @@ std::string _riri_input() {
     std::string s;
     std::getline(std::cin, s);
     return s;
+}
+
+// Overloads for push/pop to handle both std::vector (value) and Heap* (pointer)
+
+// Vector push
+template <typename T>
+void _riri_push(std::vector<T>& vec, T val) {
+    vec.push_back(val);
+}
+
+// Heap pointer push
+template <typename T>
+void _riri_push(T* obj, int val) {
+    obj->push(val);
+}
+
+// Vector pop
+template <typename T>
+T _riri_pop(std::vector<T>& vec) {
+    if (vec.empty()) return T(); // Return default
+    T val = vec.back();
+    vec.pop_back();
+    return val;
+}
+
+// Heap pointer pop
+template <typename T>
+int _riri_pop(T* obj) {
+    return obj->pop();
 }
 
 std::string _riri_fetch(std::string url) {

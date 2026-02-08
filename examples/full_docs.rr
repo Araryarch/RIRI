@@ -4,175 +4,141 @@
 
 // 1. Variables & Types
 // --------------------
-// Variables are declared using 'let'. Types are inferred (auto).
 console.log("--- 1. Variables ---");
-let x = 10;
-let name = "Riri";
-let pi = 3.14159;
+let x = 10;                 // Integer
+let pi = 3.14159;           // Float
+let name = "Riri";          // String
+let isActive = 1;           // Boolean (1=true, 0=false)
 
-console.log(name);
-console.log(x);
-
+console.log("Integer:", x);
+console.log("Float:", pi);
+console.log("String:", name);
 
 // 2. Control Flow
 // ---------------
-// Standard if-else, while, for loops, and switch-case.
-
-console.log("--- 2. Control Flow ---");
+console.log("\n--- 2. Control Flow ---");
 
 // If-Else
 if (x > 5) {
-    console.log("x is greater than 5");
+    console.log("x is > 5");
 } else {
-    console.log("x is small");
+    console.log("x is <= 5");
 }
 
-// While Loop
-let i = 0;
-console.log("While Loop:");
-while (i < 3) {
-    console.log(i);
-    i = i + 1;
+// Loops
+console.log("Looping:");
+for (let i = 0; i < 3; i = i + 1) {
+    console.log("i =", i);
 }
 
-// For Loop
-console.log("For Loop:");
-for (let j = 0; j < 3; j = j + 1) {
-    console.log(j);
+// Switch
+let opt = 1;
+switch (opt) {
+    case 1: { console.log("Selected Option 1"); break; }
+    case 2: { console.log("Selected Option 2"); break; }
+    default: { console.log("Default Option"); }
 }
 
-// Switch Case
-console.log("Switch Case:");
-let option = 2;
-switch (option) {
-    case 1: {
-        console.log("Option 1 selected");
-        break;
-    }
-    case 2: {
-        console.log("Option 2 selected");
-        break;
-    }
-    default: {
-        console.log("Default option");
-    }
-}
-
-
-// 3. Arrays
-// ---------
-// Arrays uses C++ std::vector under the hood.
-console.log("--- 3. Arrays ---");
-let numbers = [10, 20, 30, 40, 50];
-console.log("Element at index 2:");
-console.log(numbers[2]);
-
-
-// 4. Math Library
-// ---------------
-// Access standard math functions.
-console.log("--- 4. Math ---");
-console.log("Sin(0):");
-console.log(Math.sin(0));
-console.log("Sqrt(16):");
-console.log(Math.sqrt(16));
-
-
-// 5. Functions
+// 3. Functions
 // ------------
-// Functions are declared with 'func'. Return types are inferred.
-console.log("--- 5. Functions ---");
-
+console.log("\n--- 3. Functions ---");
 func add(a, b) {
     return a + b;
 }
+console.log("add(5, 10) =", add(5, 10));
 
-let sum = add(5, 7);
-console.log("Sum of 5 + 7 is:");
-console.log(sum);
+// Recursion (Factorial)
+func factorial(n) {
+    if (n <= 1) { return 1; }
+    return n * factorial(n - 1);
+}
+console.log("factorial(5) =", factorial(5));
 
+// 4. Arrays
+// ---------
+console.log("\n--- 4. Arrays ---");
+let arr = [10, 20, 30];
+arr.push(40);
+console.log("Array size:", arr.size());
+// Table Print
+console.log("Table View:");
+tprint(arr);
 
-// 6. Object Oriented Programming (OOP)
-// ------------------------------------
-// Classes, Methods, Fields, 'this', and 'new'.
+// Sorting
+print("Unsorted:");
+let nums = [5, 1, 9, 3];
+tprint(nums);
+sort(nums);
+print("Sorted:");
+tprint(nums);
 
-console.log("--- 6. OOP ---");
+// 5. Math Library
+// ---------------
+console.log("\n--- 5. Math ---");
+console.log("Abs(-10):", Math.abs(-10));
+console.log("Max(5, 9):", Math.max(5, 9));
+console.log("Pow(2, 3):", Math.pow(2, 3));
+console.log("Sqrt(16):", Math.sqrt(16));
+console.log("Random:", Math.random());
 
-class PersistData {
-    let id = 0;
-    let label = "null";
+// 6. Object Oriented Programming
+// ------------------------------
+console.log("\n--- 6. OOP ---");
+class User {
+    let name = "";
+    let age = 0;
 
-    func setData(id, label) {
-        this.id = id;
-        this.label = label;
+    func init(n, a) {
+        this.name = n;
+        this.age = a;
     }
 
-    func print() {
-        console.log("ID:");
-        console.log(this.id);
-        console.log("Label:");
-        console.log(this.label);
+    func greet() {
+        print("Hello, I am", this.name, "and I am", this.age, "years old.");
     }
 }
 
-let data = new PersistData();
-data.setData(101, "UserSession");
-data.print();
+let u = new User();
+u.init("Alice", 25);
+u.greet();
 
-
-// 7. Data Structures (Built-in)
-// -----------------------------
-// RiriLang comes with high-performance C++ implementations of common data structures.
-
-console.log("--- 7. Data Structures ---");
-
-// A. Binary Search Tree (BST)
-console.log("Binary Search Tree (BST):");
-let myBST = new BST();
-myBST.insert(50);
-myBST.insert(30);
-myBST.insert(20);
-myBST.insert(40);
-myBST.insert(70);
-myBST.insert(60);
-myBST.insert(80);
-
-console.log("In-order Traversal:");
-myBST.printInOrder();
-
-if (myBST.search(60)) {
-    console.log("Found 60 in BST!");
+// 7. Error Handling
+// -----------------
+console.log("\n--- 7. Error Handling ---");
+try {
+    print("Trying risky operation...");
+    // Future: throw "error";
+    // Currently catches C++ runtime errors or user logic
+} catch {
+    print("Caught an error!");
 }
 
-// B. AVL Tree (Self-Balancing)
-console.log("AVL Tree:");
-let myAVL = new AVL();
-myAVL.insert(10);
-myAVL.insert(20);
-myAVL.insert(30); // Triggers rotation
-myAVL.insert(40);
-myAVL.insert(50);
-myAVL.insert(25);
+// 8. Async & Networking
+// ---------------------
+console.log("\n--- 8. Async & Fetch ---");
+async fn fetchData() {
+    print("Fetching data from dummyjson...");
+    // Blocking fetch for now
+    let res = await fetch("https://dummyjson.com/products/1");
+    print("Result length:", res.length());
+    print("Preview:", res.substr(0, 50));
+}
+fetchData();
 
-console.log("AVL In-order (Balanced):");
-myAVL.printInOrder();
+// 9. Built-in Data Structures
+// ---------------------------
+console.log("\n--- 9. Data Structures ---");
 
-// C. Heap (Max Heap / Priority Queue)
-console.log("Max Heap:");
-let myHeap = new Heap();
-myHeap.push(10);
-myHeap.push(30);
-myHeap.push(20);
-myHeap.push(5);
-myHeap.push(1);
+// AVL Tree
+console.log("[AVL Tree]");
+let avl = new AVL();
+avl.insert(10); avl.insert(20); avl.insert(5);
+avl.printInOrder();
 
-console.log("Top element (Max):");
-console.log(myHeap.top()); // Should be 30
-
-console.log("Pop max:");
-console.log(myHeap.pop()); // Removes 30
-
-console.log("New Top:");
-console.log(myHeap.top()); // Should be 20
-
-console.log("--- End of Documentation ---");
+// Max Heap
+console.log("[Max Heap]");
+let heap = new Heap();
+heap.push(5); heap.push(10); heap.push(1);
+console.log("Top:", heap.top()); // 10
+console.log("Pop:", heap.pop()); // 10 removed
+console.log("Top:", heap.top()); // 5

@@ -1,0 +1,30 @@
+func main() {
+    print("==== MATH TEST ====");
+    print("Math.abs(-5):", Math.abs(-5));
+    print("Math.ceil(4.2):", Math.ceil(4.2));
+    print("Math.floor(4.8):", Math.floor(4.8));
+    print("Math.max(10, 20):", Math.max(10, 20));
+    print("Math.min(10, 20):", Math.min(10, 20));
+    print("Math.pow(2, 3):", Math.pow(2, 3));
+    print("Math.sqrt(16):", Math.sqrt(16));
+    print("Math.log(2.718):", Math.log(2.718));
+    print("Math.round(4.5):", Math.round(4.5));
+    
+    print("Random (0-1):", Math.random());
+    print("Random (0-1):", Math.random());
+
+    print("\n==== SORT TEST ====");
+    let nums = [5, 2, 9, 1, 5, 6];
+    print("Before sort:");
+    tprint(nums);
+    
+    sort(nums);
+    
+    print("After sort:");
+    tprint(nums);
+
+    let strs = ["banana", "apple", "cherry", "date"];
+    print("\nString sort:");
+    sort(strs);
+    tprint(strs);
+}
