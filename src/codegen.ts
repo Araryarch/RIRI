@@ -40,7 +40,7 @@ export class CodeGenerator {
     }
 
     public generate(): string {
-        let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n#include <cstdlib>\n#include <ctime>\n#include <stdexcept>\n#include <queue>\n#include <stack>\n#include <map>\n#include <unordered_map>\n#include <set>\n#include <regex>\n#include <memory>\n#include \"httplib.h\"\n";
+        let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n#include <cstdlib>\n#include <ctime>\n#include <stdexcept>\n#include <queue>\n#include <stack>\n#include <map>\n#include <unordered_map>\n#include <set>\n#include <regex>\n#include <memory>\n#include <sstream>\n#include \"httplib.h\"\n";
 
         if (this.options.qt) {
             cppCode += "#include <QApplication>\n#include <QPushButton>\n#include <QLabel>\n#include <QVBoxLayout>\n#include <QWidget>\n#include <QLineEdit>\n";
@@ -595,6 +595,86 @@ void print_val(const char* t) { std::cout << t; }
             const member = expr.callee as MemberExpression;
             const method = member.property;
 
+            // Array methods with callbacks
+            if (method === "map") {
+                const obj = this.genExpression(member.object);
+                const callback = this.genExpression(expr.args[0]);
+                return `_riri_map(${obj}, ${callback})`;
+            }
+            if (method === "filter") {
+                const obj = this.genExpression(member.object);
+                const callback = this.genExpression(expr.args[0]);
+                return `_riri_filter(${obj}, ${callback})`;
+            }
+            if (method === "forEach") {
+                const obj = this.genExpression(member.object);
+                const callback = this.genExpression(expr.args[0]);
+                return `_riri_forEach(${obj}, ${callback})`;
+            }
+            if (method === "reduce") {
+                const obj = this.genExpression(member.object);
+                const callback = this.genExpression(expr.args[0]);
+                const initial = this.genExpression(expr.args[1]);
+                return `_riri_reduce(${obj}, ${callback}, ${initial})`;
+            }
+            if (method === "slice") {
+                const obj = this.genExpression(member.object);
+                const start = this.genExpression(expr.args[0]);
+                const end = expr.args[1] ? this.genExpression(expr.args[1]) : "-1";
+                return `_riri_slice(${obj}, ${start}, ${end})`;
+            }
+            if (method === "indexOf") {
+                const obj = this.genExpression(member.object);
+                const value = this.genExpression(expr.args[0]);
+                return `_riri_indexOf(${obj}, ${value})`;
+            }
+            if (method === "includes") {
+                const obj = this.genExpression(member.object);
+                const value = this.genExpression(expr.args[0]);
+                return `_riri_includes(${obj}, ${value})`;
+            }
+            if (method === "join") {
+                const obj = this.genExpression(member.object);
+                const sep = expr.args[0] ? this.genExpression(expr.args[0]) : '","';
+                return `_riri_join(${obj}, ${sep})`;
+            }
+            if (method === "concat") {
+                const obj = this.genExpression(member.object);
+                const other = this.genExpression(expr.args[0]);
+                return `_riri_concat(${obj}, ${other})`;
+            }
+            if (method === "reverse") {
+                const obj = this.genExpression(member.object);
+                return `_riri_reverse(${obj})`;
+            }
+
+            // String methods
+            if (method === "split") {
+                const obj = this.genExpression(member.object);
+                const delimiter = this.genExpression(expr.args[0]);
+                return `_riri_split(${obj}, ${delimiter})`;
+            }
+            if (method === "toLowerCase") {
+                const obj = this.genExpression(member.object);
+                return `_riri_toLowerCase(${obj})`;
+            }
+            if (method === "toUpperCase") {
+                const obj = this.genExpression(member.object);
+                return `_riri_toUpperCase(${obj})`;
+            }
+            if (method === "trim") {
+                const obj = this.genExpression(member.object);
+                return `_riri_trim(${obj})`;
+            }
+            if (method === "parseInt") {
+                const arg = this.genExpression(expr.args[0]);
+                return `_riri_parseInt(${arg})`;
+            }
+            if (method === "parseFloat") {
+                const arg = this.genExpression(expr.args[0]);
+                return `_riri_parseFloat(${arg})`;
+            }
+
             // Server methods
             if (method === "listen") {
                 const port = this.genExpression(expr.args[0]);
@@ -1005,6 +1085,127 @@ std::string _riri_fetch(std::string url) {
     }
     pclose(pipe);
     return result;
+}
+
+// JavaScript-like array methods
+template<typename T, typename Func>
+std::vector<T> _riri_map(const std::vector<T>& vec, Func callback) {
+    std::vector<T> result;
+    for (size_t i = 0; i < vec.size(); i++) {
+        result.push_back(callback(vec[i]));
+    }
+    return result;
+}
+
+template<typename T, typename Func>
+std::vector<T> _riri_filter(const std::vector<T>& vec, Func callback) {
+    std::vector<T> result;
+    for (size_t i = 0; i < vec.size(); i++) {
+        if (callback(vec[i])) {
+            result.push_back(vec[i]);
+        }
+    }
+    return result;
+}
+
+template<typename T>
+std::vector<T> _riri_slice(const std::vector<T>& vec, int start, int end = -1) {
+    if (end == -1) end = vec.size();
+    if (start < 0) start = vec.size() + start;
+    if (end < 0) end = vec.size() + end;
+    if (start < 0) start = 0;
+    if (end > (int)vec.size()) end = vec.size();
+    if (start >= end) return std::vector<T>();
+    return std::vector<T>(vec.begin() + start, vec.begin() + end);
+}
+
+template<typename T, typename Func>
+void _riri_forEach(const std::vector<T>& vec, Func callback) {
+    for (size_t i = 0; i < vec.size(); i++) {
+        callback(vec[i], i);
+    }
+}
+
+template<typename T, typename Func>
+T _riri_reduce(const std::vector<T>& vec, Func callback, T initial) {
+    T result = initial;
+    for (size_t i = 0; i < vec.size(); i++) {
+        result = callback(result, vec[i], i);
+    }
+    return result;
+}
+
+template<typename T>
+int _riri_indexOf(const std::vector<T>& vec, T value) {
+    for (size_t i = 0; i < vec.size(); i++) {
+        if (vec[i] == value) return i;
+    }
+    return -1;
+}
+
+template<typename T>
+bool _riri_includes(const std::vector<T>& vec, T value) {
+    return _riri_indexOf(vec, value) != -1;
+}
+
+template<typename T>
+std::vector<T> _riri_concat(const std::vector<T>& vec1, const std::vector<T>& vec2) {
+    std::vector<T> result = vec1;
+    result.insert(result.end(), vec2.begin(), vec2.end());
+    return result;
+}
+
+template<typename T>
+std::vector<T> _riri_reverse(std::vector<T> vec) {
+    std::reverse(vec.begin(), vec.end());
+    return vec;
+}
+
+template<typename T>
+std::string _riri_join(const std::vector<T>& vec, std::string separator = ",") {
+    if (vec.empty()) return "";
+    std::ostringstream oss;
+    oss << vec[0];
+    for (size_t i = 1; i < vec.size(); i++) {
+        oss << separator << vec[i];
+    }
+    return oss.str();
+}
+
+// String methods
+std::vector<std::string> _riri_split(std::string str, std::string delimiter) {
+    std::vector<std::string> result;
+    size_t pos = 0;
+    while ((pos = str.find(delimiter)) != std::string::npos) {
+        result.push_back(str.substr(0, pos));
+        str.erase(0, pos + delimiter.length());
+    }
+    result.push_back(str);
+    return result;
+}
+
+std::string _riri_toLowerCase(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    return str;
+}
+
+std::string _riri_toUpperCase(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+    return str;
+}
+
+std::string _riri_trim(std::string str) {
+    str.erase(0, str.find_first_not_of(" \\t\\n\\r"));
+    str.erase(str.find_last_not_of(" \\t\\n\\r") + 1);
+    return str;
+}
+
+int _riri_parseInt(std::string str) {
+    return std::stoi(str);
+}
+
+double _riri_parseFloat(std::string str) {
+    return std::stod(str);
 }
 
 template <typename T>
