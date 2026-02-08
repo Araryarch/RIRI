@@ -161,7 +161,10 @@ function main() {
             // Compile command
             // Add -I src/include for httplib.h
             // Add -lpthread for httplib
-            const compileCmd = `g++ -std=c++20 -O3 -I src/include "${cppFilePath}" -o "${exePath}" -lpthread ${qtFlags}`;
+            // Add Windows socket libraries for httplib on Windows
+            const isWindows = process.platform === 'win32';
+            const socketLibs = isWindows ? '-lws2_32 -lwsock32' : '';
+            const compileCmd = `g++ -std=c++20 -O3 -I src/include "${cppFilePath}" -o "${exePath}" -lpthread ${qtFlags} ${socketLibs}`;
             console.log(`Compiling: ${compileCmd}`);
             execSync(compileCmd, { stdio: 'inherit' });
         } catch (e) {

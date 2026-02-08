@@ -170,7 +170,11 @@ export class Compiler {
         const optimizationFlag = this.options.optimize ? '-O3' : '-O0';
         const includeDir = path.join(__dirname, '..', 'include');
 
-        const compileCmd = `g++ -std=c++20 ${optimizationFlag} -I "${includeDir}" "${cppFile}" -o "${outputFile}" -lpthread ${qtFlags}`;
+        // Add Windows socket libraries for httplib on Windows
+        const isWindows = process.platform === 'win32';
+        const socketLibs = isWindows ? '-lws2_32 -lwsock32' : '';
+
+        const compileCmd = `g++ -std=c++20 ${optimizationFlag} -I "${includeDir}" "${cppFile}" -o "${outputFile}" -lpthread ${qtFlags} ${socketLibs}`;
 
         logger.debug(`Compile command: ${compileCmd}`);
 
