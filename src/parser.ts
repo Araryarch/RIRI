@@ -187,13 +187,18 @@ export class Parser {
 
         let elseBranch: Statement[] | undefined;
         if (this.at().type === TokenType.Else) {
-            this.eat();
-            this.expect(TokenType.OpenBrace, "Expected brace after else keyword");
-            elseBranch = [];
-            while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
-                elseBranch.push(this.parseStatement());
+            this.eat(); // eat else
+            if (this.at().type === TokenType.If) {
+                // else if handled as a single statement in the else branch
+                elseBranch = [this.parseIfStatement()];
+            } else {
+                this.expect(TokenType.OpenBrace, "Expected brace after else keyword");
+                elseBranch = [];
+                while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.CloseBrace) {
+                    elseBranch.push(this.parseStatement());
+                }
+                this.expect(TokenType.CloseBrace, "Expected closing brace for else block");
             }
-            this.expect(TokenType.CloseBrace, "Expected closing brace for else block");
         }
 
         return { kind: NodeType.IfStatement, condition, thenBranch, elseBranch } as IfStatement;

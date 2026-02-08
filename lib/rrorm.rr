@@ -1,0 +1,115 @@
+// RRORM - Riri Object-Relational Mapping
+// A simple ORM for RiriLang to make database operations easier
+
+// Model base - provides common CRUD operations
+// Usage:
+//   class User extends Model {
+//       static tableName = "users";
+//   }
+//
+//   User.create({ username: "john", password: "123" });
+//   User.findById(1);
+//   User.findBy("username", "john");
+//   User.all();
+//   user.save();
+//   user.delete();
+
+// Initialize database connection
+fn rrormInit(dbPath) {
+    dbInit(dbPath);
+}
+
+// Create table from schema
+// schema is a string like: "id INTEGER PRIMARY KEY, name TEXT, email TEXT"
+fn rrormCreateTable(tableName, schema) {
+    let sql = "CREATE TABLE IF NOT EXISTS " + tableName + " (" + schema + ")";
+    return dbExec(sql);
+}
+
+// Insert a new record
+// fields: "name, email"
+// values: "'John', 'john@example.com'"
+fn rrormInsert(tableName, fields, values) {
+    let sql = "INSERT INTO " + tableName + " (" + fields + ") VALUES (" + values + ")";
+    return dbExec(sql);
+}
+
+// Find a record by ID
+fn rrormFindById(tableName, id) {
+    let sql = "SELECT * FROM " + tableName + " WHERE id = " + string(id) + " LIMIT 1";
+    let rows = dbQuery(sql);
+    if (rows.length == 0) {
+        return null;
+    }
+    return rows[0];
+}
+
+// Find records by a field value
+fn rrormFindBy(tableName, field, value) {
+    let safeValue = escapeSql(value);
+    let sql = "SELECT * FROM " + tableName + " WHERE " + field + " = '" + safeValue + "'";
+    return dbQuery(sql);
+}
+
+// Find one record by field value
+fn rrormFindOneBy(tableName, field, value) {
+    let safeValue = escapeSql(value);
+    let sql = "SELECT * FROM " + tableName + " WHERE " + field + " = '" + safeValue + "' LIMIT 1";
+    let rows = dbQuery(sql);
+    if (rows.length == 0) {
+        return null;
+    }
+    return rows[0];
+}
+
+// Get all records from a table
+fn rrormAll(tableName) {
+    let sql = "SELECT * FROM " + tableName;
+    return dbQuery(sql);
+}
+
+// Update a record by ID
+// setClause: "name = 'Jane', email = 'jane@example.com'"
+fn rrormUpdate(tableName, id, setClause) {
+    let sql = "UPDATE " + tableName + " SET " + setClause + " WHERE id = " + string(id);
+    return dbExec(sql);
+}
+
+// Delete a record by ID
+fn rrormDelete(tableName, id) {
+    let sql = "DELETE FROM " + tableName + " WHERE id = " + string(id);
+    return dbExec(sql);
+}
+
+// Count records in a table
+fn rrormCount(tableName) {
+    let sql = "SELECT COUNT(*) FROM " + tableName;
+    let rows = dbQuery(sql);
+    if (rows.length == 0) {
+        return 0;
+    }
+    return int(rows[0][0]);
+}
+
+// Custom query
+fn rrormQuery(sql) {
+    return dbQuery(sql);
+}
+
+// Custom execute
+fn rrormExec(sql) {
+    return dbExec(sql);
+}
+
+// Get last inserted ID
+fn rrormLastId() {
+    return dbLastId();
+}
+
+// Helper to build WHERE clause
+fn rrormWhere(tableName, whereClause) {
+    let sql = "SELECT * FROM " + tableName + " WHERE " + whereClause;
+    return dbQuery(sql);
+}
+
+print("RRORM loaded!");

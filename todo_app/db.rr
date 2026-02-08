@@ -1,0 +1,14 @@
+// Database Setup for Todo App using RRORM
+import "../lib/rrorm.rr";
+
+fn initDatabase() {
+    rrormInit("todo_app.db");
+    
+    // Create users table
+    rrormCreateTable("users", "id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, token TEXT");
+    
+    // Create todos table  
+    rrormCreateTable("todos", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT, completed INTEGER DEFAULT 0");
+    
+    print("Database initialized with RRORM!");
+}

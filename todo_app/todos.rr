@@ -1,0 +1,60 @@
+import "./models.rr";
+import "./auth.rr";
+
+func getTodos(u) {
+    let sql = "SELECT id, user_id, title, description, completed FROM todos WHERE user_id = " + string(u.id);
+    let rows = dbQuery(sql);
+    
+    let _dTodo = new Todo();
+    let userTodos = [_dTodo]; userTodos.pop();
+    
+    for (let i = 0; i < rows.length; i = i + 1) {
+        let row = rows[i];
+        let t = new Todo();
+        t.id = int(row[0]);
+        t.userId = int(row[1]);
+        t.title = row[2];
+        t.description = row[3];
+        t.completed = int(row[4]);
+        userTodos.push(t);
+    }
+    
+    return userTodos;
+}
+
+func addTodo(u, title, description) {
+    if (title == "") {
+        return "error: title required";
+    }
+    
+    let safeTitle = escapeSql(title);
+    let safeDesc = escapeSql(description);
+    
+    let sql = "INSERT INTO todos (user_id, title, description) VALUES (" + string(u.id) + ", '" + safeTitle + "', '" + safeDesc + "')";
+    let success = dbExec(sql);
+    
+    if (success) {
+        return "success";
+    }
+    return "error: database error";
+}
+
+func completeTodo(u, id) {
+    let sql = "UPDATE todos SET completed = 1 WHERE id = " + string(id) + " AND user_id = " + string(u.id);
+    let success = dbExec(sql);
+    
+    if (success) {
+        return "success";
+    }
+    return "error: not found";
+}
+
+func deleteTodo(u, id) {
+    let sql = "DELETE FROM todos WHERE id = " + string(id) + " AND user_id = " + string(u.id);
+    let success = dbExec(sql);
+    
+    if (success) {
+        return "success";
+    }
+    return "error: not found";
+}

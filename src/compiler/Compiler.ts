@@ -13,6 +13,7 @@ import { CompilerError } from '../utils/errors/CompilerError';
  */
 export interface CompilerOptions {
     qt?: boolean;
+    gtk?: boolean;
     outputDir?: string;
     keepCpp?: boolean;
     optimize?: boolean;
@@ -76,7 +77,7 @@ export class Compiler {
 
             // 5. Code generation
             logger.debug('Generating C++ code...');
-            const generator = new CodeGenerator(program, { qt: this.options.qt });
+            const generator = new CodeGenerator(program, { qt: this.options.qt, gtk: this.options.gtk });
             const cppCode = generator.generate();
 
             // 6. Write C++ file
@@ -133,7 +134,7 @@ export class Compiler {
                 path.dirname(path.resolve(filePath))
             );
 
-            const generator = new CodeGenerator(program, { qt: this.options.qt });
+            const generator = new CodeGenerator(program, { qt: this.options.qt, gtk: this.options.gtk });
             return generator.generate();
         } catch (error) {
             logger.error(`Failed to generate C++ code: ${error}`);
@@ -167,6 +168,18 @@ export class Compiler {
             }
         }
 
+        let gtkFlags = '';
+        if (this.options.gtk) {
+            try {
+                gtkFlags = execSync('pkg-config --cflags --libs gtk4', {
+                    stdio: 'pipe'
+                }).toString().trim();
+                logger.debug(`GTK flags: ${gtkFlags}`);
+            } catch (e) {
+                logger.warn('GTK libraries not found. Compilation may fail if GTK features are used.');
+            }
+        }
+
         const optimizationFlag = this.options.optimize ? '-O3' : '-O0';
         const includeDir = path.join(__dirname, '..', 'include');
 
@@ -174,7 +187,7 @@ export class Compiler {
         const isWindows = process.platform === 'win32';
         const socketLibs = isWindows ? '-lws2_32 -lwsock32' : '';
 
-        const compileCmd = `g++ -std=c++20 ${optimizationFlag} -I "${includeDir}" "${cppFile}" -o "${outputFile}" -lpthread ${qtFlags} ${socketLibs}`;
+        const compileCmd = `g++ -std=c++20 ${optimizationFlag} -I "${includeDir}" "${cppFile}" -o "${outputFile}" -lpthread ${qtFlags} ${gtkFlags} ${socketLibs}`;
 
         logger.debug(`Compile command: ${compileCmd}`);
 

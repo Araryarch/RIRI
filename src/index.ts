@@ -126,7 +126,7 @@ function main() {
         // Or better, update imports in index.ts to include NodeType.
         resolveImports(program, path.dirname(path.resolve(filePath)));
 
-        // 130. Codegen
+        // 3. Codegen
         const useQt = args.includes("--qt");
         const generator = new CodeGenerator(program, { qt: useQt });
         const cCode = generator.generate();
@@ -164,7 +164,9 @@ function main() {
             // Add Windows socket libraries for httplib on Windows
             const isWindows = process.platform === 'win32';
             const socketLibs = isWindows ? '-lws2_32 -lwsock32' : '';
-            const compileCmd = `g++ -std=c++20 -O3 -I src/include "${cppFilePath}" -o "${exePath}" -lpthread ${qtFlags} ${socketLibs}`;
+            // Add -fPIC for Qt to avoid linker errors with protected symbols
+            const picFlag = args.includes("--qt") ? '-fPIC' : '';
+            const compileCmd = `g++ -std=c++20 -O3 ${picFlag} -I src/include "${cppFilePath}" -o "${exePath}" -lpthread -lssl -lcrypto -lsqlite3 ${qtFlags} ${socketLibs}`;
             console.log(`Compiling: ${compileCmd}`);
             execSync(compileCmd, { stdio: 'inherit' });
         } catch (e) {

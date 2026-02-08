@@ -1,0 +1,33 @@
+class User {
+    id = 0;
+    username = "";
+    password = "";
+    token = "";
+}
+
+class Todo {
+    id = 0;
+    userId = 0;
+    title = "";
+    description = "";
+    completed = 0;
+}
+
+func createUser(id, username, password) {
+    let u = new User();
+    u.id = id;
+    u.username = username;
+    u.password = password;
+    u.token = "";
+    return u;
+}
+
+func createTodo(id, userId, title, description) {
+    let t = new Todo();
+    t.id = id;
+    t.userId = userId;
+    t.title = title;
+    t.description = description;
+    t.completed = 0;
+    return t;
+}

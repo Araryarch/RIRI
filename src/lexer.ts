@@ -93,6 +93,22 @@ export function tokenize(source: string): Token[] {
             continue;
         }
 
+        // 5.1 Block Comments
+        if (char === '/' && cursor + 1 < source.length && source[cursor + 1] === '*') {
+            cursor += 2;
+            while (cursor < source.length) {
+                if (source[cursor] === '*' && cursor + 1 < source.length && source[cursor + 1] === '/') {
+                    cursor += 2;
+                    break;
+                }
+                if (source[cursor] === '\n') {
+                    line++;
+                }
+                cursor++;
+            }
+            continue;
+        }
+
         // 6. Operators & Punctuation
         // Handle '=' related operators first
         if (char === '=') {

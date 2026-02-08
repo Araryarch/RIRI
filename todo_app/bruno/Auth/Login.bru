@@ -1,0 +1,23 @@
+
+meta {
+  name: Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:8080/api/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "user123",
+    "password": "password123"
+  }
+}
+
+script:post-response {
+  bru.setVar("token", res.body.data.token);
+}

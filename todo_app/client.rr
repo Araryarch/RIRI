@@ -1,0 +1,175 @@
+// Riri Todo App Client
+// Uses Qt for UI with Authentication
+
+// --- Authentication Token (will be set after login) ---
+let token = "";
+
+// Main Window
+let window = document.createElement("window");
+window.setAttribute("title", "Riri Todo App");
+window.show();
+
+// Layout
+let mainLayout = document.createElement("div");
+window.appendChild(mainLayout);
+
+// Title
+let title = document.createElement("label");
+title.setAttribute("text", "Riri Todo App");
+title.setAttribute("style", "font-size: 24px; font-weight: bold; margin: 10px;");
+mainLayout.appendChild(title);
+
+// Auth Section
+let authRow = document.createElement("span");
+mainLayout.appendChild(authRow);
+
+let usernameInput = document.createElement("input");
+usernameInput.setAttribute("placeholder", "Username");
+authRow.appendChild(usernameInput);
+
+let passwordInput = document.createElement("input");
+passwordInput.setAttribute("placeholder", "Password");
+authRow.appendChild(passwordInput);
+
+let loginBtn = document.createElement("button");
+loginBtn.setAttribute("text", "Login");
+authRow.appendChild(loginBtn);
+
+let registerBtn = document.createElement("button");
+registerBtn.setAttribute("text", "Register");
+authRow.appendChild(registerBtn);
+
+// Status Label
+let statusLabel = document.createElement("label");
+statusLabel.setAttribute("text", "Please login or register");
+statusLabel.setAttribute("style", "color: gray; margin: 5px;");
+mainLayout.appendChild(statusLabel);
+
+// Separator
+let separator = document.createElement("label");
+separator.setAttribute("text", "--- Todos ---");
+separator.setAttribute("style", "font-weight: bold; margin: 10px;");
+mainLayout.appendChild(separator);
+
+// Input Area
+let inputRow = document.createElement("span");
+mainLayout.appendChild(inputRow);
+
+let input = document.createElement("input");
+input.setAttribute("placeholder", "Enter todo...");
+inputRow.appendChild(input);
+
+let addBtn = document.createElement("button");
+addBtn.setAttribute("text", "Add Task");
+inputRow.appendChild(addBtn);
+
+// Todo List (QListWidget)
+let list = document.createElement("list");
+mainLayout.appendChild(list);
+
+// --- Logic ---
+
+fn fetchTodos() {
+    if (token == "") {
+        print("Not logged in, skipping fetch");
+        return;
+    }
+    
+    print("Fetching todos...");
+    list.clearItems();
+    
+    let response = fetch("http://localhost:8080/api/todos", token);
+    print("Response: " + response);
+    
+    let success = JSON.get(response, "status");
+    if (success == "success") {
+        let todos = JSON.getArray(response, "data");
+        let count = todos.length();
+        for (let i = 0; i < count; i = i + 1) {
+            let todo = todos[i];
+            list.addItem(todo);
+        }
+    }
+}
+
+// Register handler
+registerBtn.addEventListener("click", () => {
+    let username = usernameInput.getValue();
+    let password = passwordInput.getValue();
+    
+    if (username == "" || password == "") {
+        statusLabel.setAttribute("text", "Please enter username and password");
+        return;
+    }
+    
+    print("Registering: " + username);
+    let body = "{\"username\": \"" + username + "\", \"password\": \"" + password + "\"}";
+    let res = post("http://localhost:8080/api/register", body);
+    print("Register result: " + res);
+    
+    let status = JSON.get(res, "status");
+    if (status == "success") {
+        statusLabel.setAttribute("text", "Registered! Please login.");
+    } else {
+        let msg = JSON.get(res, "message");
+        statusLabel.setAttribute("text", "Error: " + msg);
+    }
+});
+
+// Login handler
+loginBtn.addEventListener("click", () => {
+    let username = usernameInput.getValue();
+    let password = passwordInput.getValue();
+    
+    if (username == "" || password == "") {
+        statusLabel.setAttribute("text", "Please enter username and password");
+        return;
+    }
+    
+    print("Logging in: " + username);
+    let body = "{\"username\": \"" + username + "\", \"password\": \"" + password + "\"}";
+    let res = post("http://localhost:8080/api/login", body);
+    print("Login result: " + res);
+    
+    let status = JSON.get(res, "status");
+    if (status == "success") {
+        token = JSON.get(res, "data");
+        statusLabel.setAttribute("text", "Logged in as " + username);
+        print("Token: " + token);
+        fetchTodos();
+    } else {
+        let msg = JSON.get(res, "message");
+        statusLabel.setAttribute("text", "Login failed: " + msg);
+    }
+});
+
+// Add todo handler
+addBtn.addEventListener("click", () => {
+    if (token == "") {
+        statusLabel.setAttribute("text", "Please login first");
+        return;
+    }
+    
+    let task = input.getValue();
+    if (task == "") {
+        return;
+    }
+    
+    print("Adding task: " + task);
+    
+    let body = "{\"task\": \"" + task + "\"}";
+    let res = post("http://localhost:8080/api/todos", body, token);
+    print("Added: " + res);
+    
+    let status = JSON.get(res, "status");
+    if (status == "success") {
+        list.addItem(task);
+        statusLabel.setAttribute("text", "Task added!");
+    } else {
+        let msg = JSON.get(res, "message");
+        statusLabel.setAttribute("text", "Error: " + msg);
+    }
+});
+
+// Initial message
+print("Todo App Started!");

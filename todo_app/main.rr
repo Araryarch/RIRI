@@ -1,0 +1,134 @@
+import "./models.rr";
+import "./common.rr";
+import "./db.rr";
+import "./auth.rr";
+import "./todos.rr";
+
+// Initialize database
+initDatabase();
+
+let server = new Server();
+
+server.get("/", (req, res) => {
+    res.json(successResponse("null", "Welcome to Riri Todo API"));
+});
+
+// Auth Routes
+
+server.post("/api/register", (req, res) => {
+    let username = req.get_param_value("username");
+    let password = req.get_param_value("password");
+    
+    // Check JSON body if params missing
+    if (username == "") {
+         username = JSON.get(req.body, "username");
+    }
+    if (password == "") {
+         password = JSON.get(req.body, "password");
+    }
+    
+    let result = registerUser(username, password);
+    if (result == "success") {
+        res.json(successResponse("null", "User created successfully"));
+    } else {
+        res.status(400); 
+        res.json(errorResponse(result));
+    }
+});
+
+server.post("/api/login", (req, res) => {
+    let username = req.get_param_value("username");
+    let password = req.get_param_value("password");
+
+    // Check JSON body if params missing
+    if (username == "") {
+         username = JSON.get(req.body, "username");
+    }
+    if (password == "") {
+         password = JSON.get(req.body, "password");
+    }
+
+    let token = login(username, password);
+    if (token.startsWith("error")) {
+        res.status(401);
+        res.json(errorResponse(token));
+    } else {
+        let data = "{\"token\": \"" + token + "\"}";
+        res.json(successResponse(data, "Login successful"));
+    }
+});
+
+// Todo Routes
+
+server.get("/api/todos", (req, res) => {
+    let token = req.get_header_value("Authorization");
+    
+    let parts = token.split(" ");
+    let actualToken = token;
+    if (parts.length > 1) {
+        if (parts[0] == "Bearer") {
+            actualToken = parts[1];
+        }
+    }
+
+    let u = findUserByToken(actualToken);
+    if (u == null) {
+        res.status(401);
+        res.json(errorResponse("Unauthorized"));
+        return;
+    }
+    
+    let todos = getTodos(u);
+    
+    let json = "[";
+    for (let i = 0; i < todos.length; i = i + 1) {
+        let t = todos[i];
+        if (i > 0) { json = json + ","; }
+        json = json + "{\"id\": " + string(t.id) + ", \"title\": \"" + t.title + "\", \"description\": \"" + t.description + "\", \"completed\": " + string(t.completed) + "}";
+    }
+    json = json + "]";
+    
+    res.json(successResponse(json, "Todos retrieved successfully"));
+});
+
+server.post("/api/todos", (req, res) => {
+    let token = req.get_header_value("Authorization");
+    
+    let parts = token.split(" ");
+    let actualToken = token;
+    if (parts.length > 1) {
+        if (parts[0] == "Bearer") {
+            actualToken = parts[1];
+        }
+    }
+
+    let title = req.get_param_value("title");
+    let desc = req.get_param_value("description");
+    
+    // Check JSON body if params missing
+    if (title == "") {
+         title = JSON.get(req.body, "title");
+    }
+    if (desc == "") {
+         desc = JSON.get(req.body, "description");
+    }
+
+    let u = findUserByToken(actualToken);
+    if (u == null) {
+        res.status(401);
+        res.json(errorResponse("Unauthorized"));
+        return;
+    }
+
+    let result = addTodo(u, title, desc);
+    if (result == "success") {
+        res.json(successResponse("null", "Todo added successfully"));
+    } else {
+        res.status(400);
+        res.json(errorResponse(result));
+    }
+});
+
+print("Starting server on port 8080...");
+server.listen(8080);
+

@@ -1,4 +1,5 @@
 
+
 import {
     Statement,
     Program,
@@ -43,73 +44,461 @@ export class CodeGenerator {
     public generate(): string {
         let cppCode = "#include <iostream>\n#include <vector>\n#include <string>\n#include <functional>\n#include <cmath>\n#include <algorithm>\n#include <cstdlib>\n#include <ctime>\n#include <stdexcept>\n#include <queue>\n#include <stack>\n#include <map>\n#include <unordered_map>\n#include <set>\n#include <regex>\n#include <memory>\n#include <sstream>\n#include \"httplib.h\"\n";
 
+        // Qt Includes (must come before DOM implementation)
         if (this.options.qt) {
-            cppCode += "#include <QApplication>\n#include <QPushButton>\n#include <QLabel>\n#include <QVBoxLayout>\n#include <QWidget>\n#include <QLineEdit>\n";
+            cppCode += "#include <QApplication>\n#include <QWidget>\n#include <QPushButton>\n#include <QLabel>\n#include <QLineEdit>\n#include <QVBoxLayout>\n#include <QHBoxLayout>\n#include <QListWidget>\n#include <QMessageBox>\n";
+        }
+
+        // OpenSSL Headers for JWT
+        cppCode += "#include <openssl/hmac.h>\n#include <openssl/evp.h>\n#include <openssl/sha.h>\n#include <openssl/buffer.h>\n#include <openssl/bio.h>\n";
+
+        // SQLite3 for database
+        cppCode += "#include <sqlite3.h>\n\n";
+
+        // SQLite Database Helper
+        cppCode += `
+// --- SQLite Database Helper ---
+class RiriDB {
+private:
+    sqlite3* db;
+    std::string dbPath;
+    
+public:
+    RiriDB(std::string path = "riri.db") : dbPath(path), db(nullptr) {
+        int rc = sqlite3_open(path.c_str(), &db);
+        if (rc) {
+            std::cerr << "Cannot open database: " << sqlite3_errmsg(db) << std::endl;
+            db = nullptr;
+        }
+    }
+    
+    ~RiriDB() {
+        if (db) sqlite3_close(db);
+    }
+    
+    bool execute(std::string sql) {
+        if (!db) return false;
+        char* errMsg = nullptr;
+        int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errMsg);
+        if (rc != SQLITE_OK) {
+            std::cerr << "SQL Error: " << errMsg << std::endl;
+            sqlite3_free(errMsg);
+            return false;
+        }
+        return true;
+    }
+    
+    std::vector<std::vector<std::string>> query(std::string sql) {
+        std::vector<std::vector<std::string>> results;
+        if (!db) return results;
+        
+        sqlite3_stmt* stmt;
+        int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "SQL Prepare Error: " << sqlite3_errmsg(db) << std::endl;
+            return results;
+        }
+        
+        int cols = sqlite3_column_count(stmt);
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            std::vector<std::string> row;
+            for (int i = 0; i < cols; i++) {
+                const char* val = (const char*)sqlite3_column_text(stmt, i);
+                row.push_back(val ? val : "");
+            }
+            results.push_back(row);
+        }
+        
+        sqlite3_finalize(stmt);
+        return results;
+    }
+    
+    int lastInsertId() {
+        if (!db) return 0;
+        return (int)sqlite3_last_insert_rowid(db);
+    }
+};
+
+// Global database instance
+RiriDB* _riri_db = nullptr;
+
+void _riri_db_init(std::string path = "riri.db") {
+    if (_riri_db) delete _riri_db;
+    _riri_db = new RiriDB(path);
+}
+
+bool _riri_db_exec(std::string sql) {
+    if (!_riri_db) _riri_db_init();
+    return _riri_db->execute(sql);
+}
+
+std::vector<std::vector<std::string>> _riri_db_query(std::string sql) {
+    if (!_riri_db) _riri_db_init();
+    return _riri_db->query(sql);
+}
+
+int _riri_db_last_id() {
+    if (!_riri_db) return 0;
+    return _riri_db->lastInsertId();
+}
+
+std::string _riri_escape_sql(std::string s) {
+    std::string result;
+    for (char c : s) {
+        if (c == 39) result += "''";  // 39 is ASCII for single quote
+        else result += c;
+    }
+    return result;
+}
+`;
+
+        cppCode += `
+// --- Base64Url Implementation ---
+std::string base64url_encode(const std::string &in) {
+    if (in.empty()) return "";
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bio = BIO_push(b64, bio);
+
+    BIO_write(bio, in.c_str(), in.length());
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    
+    std::string out(bufferPtr->data, bufferPtr->length);
+    BIO_free_all(bio);
+
+    // Convert to URL safe
+    std::replace(out.begin(), out.end(), '+', '-');
+    std::replace(out.begin(), out.end(), '/', '_');
+    out.erase(std::remove(out.begin(), out.end(), '='), out.end());
+    
+    return out;
+}
+
+std::string base64url_decode(const std::string &in) {
+    if (in.empty()) return "";
+    std::string temp = in;
+    std::replace(temp.begin(), temp.end(), '-', '+');
+    std::replace(temp.begin(), temp.end(), '_', '/');
+    while (temp.length() % 4 != 0) temp += '=';
+
+    BIO *bio, *b64;
+    char *buffer = (char *)malloc(temp.length());
+    memset(buffer, 0, temp.length());
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new_mem_buf(temp.c_str(), temp.length());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    bio = BIO_push(b64, bio);
+
+    int len = BIO_read(bio, buffer, temp.length());
+    std::string out(buffer, len);
+    
+    BIO_free_all(bio);
+    free(buffer);
+    
+    return out;
+}
+
+// --- HMAC-SHA256 ---
+std::string hmac_sha256(const std::string &key, const std::string &data) {
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int len = 0;
+    
+    HMAC(EVP_sha256(), key.c_str(), key.length(), (unsigned char*)data.c_str(), data.length(), hash, &len);
+    
+    return std::string((char*)hash, len);
+}
+
+// --- JWT Helper ---
+// Expose as global functions mapped to JWT.sign / verify
+struct JWT {
+    static std::string sign(std::string payload, std::string secret) {
+        std::string header = "{\\"alg\\":\\"HS256\\",\\"typ\\":\\"JWT\\"}";
+        std::string encodedHeader = base64url_encode(header);
+        std::string encodedPayload = base64url_encode(payload);
+        
+        std::string signature = hmac_sha256(secret, encodedHeader + "." + encodedPayload);
+        std::string encodedSignature = base64url_encode(signature);
+        
+        return encodedHeader + "." + encodedPayload + "." + encodedSignature;
+    }
+
+    static std::string verify(std::string token, std::string secret) {
+        std::vector<std::string> parts;
+        std::stringstream ss(token);
+        std::string segment;
+        while(std::getline(ss, segment, '.')) {
+            parts.push_back(segment);
+            if (parts.size() > 3) break; // Invalid format
+        }
+
+        if (parts.size() != 3) return "error: invalid token format";
+
+        std::string header = parts[0];
+        std::string payload = parts[1];
+        std::string signature = parts[2];
+
+        std::string expectedSig = base64url_encode(hmac_sha256(secret, header + "." + payload));
+        
+        if (signature != expectedSig) return "error: signature mismatch";
+
+        return base64url_decode(payload);
+    }
+};
+
+// --- JSON Helper (Simple Regex/Find based) ---
+// Extracts string value for a key. Returns empty string if not found.
+std::string _riri_get_json_string(std::string json, std::string key) {
+    char dq = 34; std::string key_pattern = std::string(1, dq) + key + std::string(1, dq);
+    size_t pos = json.find(key_pattern);
+    if (pos == std::string::npos) return "";
+    
+    pos += key_pattern.length();
+    
+    // Find colon
+    pos = json.find(":", pos);
+    if (pos == std::string::npos) return "";
+    pos++; // skip colon
+
+    // Skip whitespace
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\\n' || json[pos] == '\\r' || json[pos] == '\\t')) pos++;
+    
+    if (pos >= json.length()) return "";
+
+    // If string
+    if (json[pos] == '"') {
+        pos++; // skip opening quote
+        size_t end = pos;
+        while (end < json.length()) {
+             if (json[end] == '"' && json[end-1] != '\\\\') break;
+             end++;
+        }
+        if (end >= json.length()) return "";
+        return json.substr(pos, end - pos);
+    }
+    
+    // If number/boolean (simple read until comma or })
+    size_t end = json.find_first_of(",}", pos);
+    if (end == std::string::npos) return "";
+    return json.substr(pos, end - pos);
+}
+
+std::vector<std::string> _riri_get_json_array(std::string json, std::string key) {
+    // 1. Get the array string
+    // Reuse basic logic or copy-paste part of it
+    // Or just parsing the value manually
+    char dq = 34; std::string key_pattern = std::string(1, dq) + key + std::string(1, dq);
+    size_t pos = json.find(key_pattern);
+    if (pos == std::string::npos) return {};
+    pos = json.find(":", pos + key_pattern.length());
+    if (pos == std::string::npos) return {};
+    pos = json.find("[", pos); // Find start of array
+    if (pos == std::string::npos) return {};
+    pos++; // skip [
+
+    std::vector<std::string> result;
+    while (pos < json.length()) {
+        // Skip whitespace
+        while (pos < json.length() && isspace(json[pos])) pos++;
+        if (pos >= json.length()) break;
+        if (json[pos] == ']') break; // End of array
+
+        if (json[pos] == '"') {
+            // String item
+            pos++;
+            size_t end = pos;
+            while (end < json.length()) {
+                 if (json[end] == '"' && json[end-1] != '\\\\') break;
+                 end++;
+            }
+            if (end >= json.length()) break;
+            result.push_back(json.substr(pos, end - pos));
+            pos = end + 1;
+        }
+        
+        // Skip comma
+        pos = json.find_first_of(",]", pos);
+        if (pos == std::string::npos) break;
+        if (json[pos] == ']') break;
+        pos++;
+    }
+    return result;
+}
+
+struct JSON {
+    static std::string get(std::string json, std::string key) {
+        return _riri_get_json_string(json, key);
+    }
+    static std::vector<std::string> getArray(std::string json, std::string key) {
+        return _riri_get_json_array(json, key);
+    }
+};
+`;
+
+        if (this.options.qt) {
             cppCode += `
 void qt_connect(std::shared_ptr<QPushButton> btn, std::string signal, std::function<void()> callback) {
     if (signal == "clicked" && btn) {
         QObject::connect(btn.get(), &QPushButton::clicked, callback);
     }
 }
-// Helper macros and includes for Qt DOM
+
+// Qt Helpers
+std::shared_ptr<QListWidget> _riri_create_list() {
+    return std::make_shared<QListWidget>();
+}
+
+void _riri_list_add(std::shared_ptr<QListWidget> list, std::string item) {
+    list->addItem(QString::fromStdString(item));
+}
+
+void _riri_list_clear(std::shared_ptr<QListWidget> list) {
+    list->clear();
+}
+
+void _riri_msg_box(std::string msg) {
+    QMessageBox msgBox;
+    msgBox.setText(QString::fromStdString(msg));
+    msgBox.exec();
+}
+`;
+        }
+
+        // HTTP Client Helpers using httplib
+        cppCode += `
+std::string _riri_fetch_get(std::string urlStr, std::string token = "") {
+    // Basic parsing of url (assuming http://host:port/path)
+    // For MVP assuming localhost:8080
+    
+    httplib::Client cli("http://localhost:8080");
+    httplib::Headers headers;
+    if (!token.empty()) {
+        headers.emplace("Authorization", token);
+    }
+    
+    // Extract path? 
+    // urlStr: http://localhost:8080/api/todos -> /api/todos
+    std::string path = urlStr;
+    size_t pos = urlStr.find("8080");
+    if (pos != std::string::npos) {
+        path = urlStr.substr(pos + 4);
+    }
+    
+    auto res = cli.Get(path, headers);
+    if (res && res->status == 200) {
+        return res->body;
+    }
+    return "";
+}
+
+std::string _riri_fetch_post(std::string urlStr, std::string body, std::string token = "") {
+    httplib::Client cli("http://localhost:8080");
+    httplib::Headers headers;
+    if (!token.empty()) {
+        headers.emplace("Authorization", token);
+    }
+    
+    std::string path = urlStr;
+    size_t pos = urlStr.find("8080");
+    if (pos != std::string::npos) {
+        path = urlStr.substr(pos + 4);
+    }
+
+    auto res = cli.Post(path, headers, body, "application/json");
+    if (res) {
+        return res->body;
+    }
+    return "error";
+}
+`;
+
+        // Helper macros and includes for Qt DOM
+        if (this.options.qt) {
+            cppCode += `
 QString qt_str(std::string s) { return QString::fromStdString(s); }
 std::string qt_to_std(QString s) { return s.toStdString(); }
-template<typename T>
-T* qt_raw(std::shared_ptr<T> p) { return p.get(); }
 
-// --- DOM Implementation ---
+// --- DOM Implementation using raw pointers ---
+// Qt has its own memory management via parent-child relationships
 
-// Base wrapper for any Qt element
 struct QtElement {
-    std::shared_ptr<QWidget> widget;
-    std::shared_ptr<QLayout> layout; // Optional layout if it's a container
+    QWidget* widget = nullptr;
+    QLayout* layout = nullptr;
     std::string tagName;
 
     QtElement(std::string tag) : tagName(tag) {}
+    ~QtElement() {
+        // Don't delete widget - Qt manages via parent hierarchy
+    }
 
     void setAttribute(std::string key, std::string value) {
         if (!widget) return;
         if (key == "text") {
-            // Check type and set text
-            auto btn = std::dynamic_pointer_cast<QPushButton>(widget);
-            if (btn) btn->setText(QString::fromStdString(value));
-            auto lbl = std::dynamic_pointer_cast<QLabel>(widget);
-            if (lbl) lbl->setText(QString::fromStdString(value));
-            auto inp = std::dynamic_pointer_cast<QLineEdit>(widget);
-            if (inp) inp->setText(QString::fromStdString(value));
-            auto win = std::dynamic_pointer_cast<QWidget>(widget);
-            if (win) win->setWindowTitle(QString::fromStdString(value)); // 'text' on generic widget sets title? Or introduce 'title' attr?
+            if (auto btn = qobject_cast<QPushButton*>(widget)) {
+                btn->setText(QString::fromStdString(value));
+            } else if (auto lbl = qobject_cast<QLabel*>(widget)) {
+                lbl->setText(QString::fromStdString(value));
+            } else if (auto inp = qobject_cast<QLineEdit*>(widget)) {
+                inp->setText(QString::fromStdString(value));
+            }
         }
         if (key == "title") {
-             widget->setWindowTitle(QString::fromStdString(value));
+            widget->setWindowTitle(QString::fromStdString(value));
         }
         if (key == "style") {
             widget->setStyleSheet(QString::fromStdString(value));
+        }
+        if (key == "placeholder") {
+            if (auto inp = qobject_cast<QLineEdit*>(widget)) {
+                inp->setPlaceholderText(QString::fromStdString(value));
+            }
+        }
+    }
+
+    std::string getValue() {
+        if (!widget) return "";
+        if (auto inp = qobject_cast<QLineEdit*>(widget)) {
+            return inp->text().toStdString();
+        }
+        return "";
+    }
+
+    void addItem(std::string text) {
+        if (!widget) return;
+        if (auto lst = qobject_cast<QListWidget*>(widget)) {
+            lst->addItem(QString::fromStdString(text));
+        }
+    }
+
+    void clearItems() {
+        if (!widget) return;
+        if (auto lst = qobject_cast<QListWidget*>(widget)) {
+            lst->clear();
         }
     }
 
     void addEventListener(std::string event, std::function<void()> callback) {
         if (!widget) return;
         if (event == "click") {
-            auto btn = std::dynamic_pointer_cast<QPushButton>(widget);
-            if (btn) QObject::connect(btn.get(), &QPushButton::clicked, callback);
+            if (auto btn = qobject_cast<QPushButton*>(widget)) {
+                QObject::connect(btn, &QPushButton::clicked, callback);
+            }
         }
-        // Add more events as needed
     }
 
-    void appendChild(std::shared_ptr<QtElement> child) {
+    void appendChild(QtElement* child) {
         if (!widget || !child || !child->widget) return;
-        
-        // If this element has a layout, add child to layout
+
         if (layout) {
-            layout->addWidget(child->widget.get());
+            layout->addWidget(child->widget);
         } else {
-            // If no layout, simply set parent (absolute positioning or non-container)
-            // But usually we want layout. 
-            // If it's a "div" without layout initialized? 
-            // We initialize layout lazily or in constructor.
-            child->widget->setParent(widget.get());
-            child->widget->show(); // Ensure visibility
+            child->widget->setParent(widget);
+            child->widget->show();
         }
     }
 
@@ -119,95 +508,96 @@ struct QtElement {
 };
 
 struct Document {
-    std::shared_ptr<QtElement> createElement(std::string tag) {
-        auto el = std::make_shared<QtElement>(tag);
-        
+    QtElement* createElement(std::string tag) {
+        QtElement* el = new QtElement(tag);
+
         if (tag == "div") {
-            auto w = std::make_shared<QWidget>();
-            el->widget = w;
-            el->layout = std::make_shared<QVBoxLayout>(w.get()); // Default vertical layout
-        } else if (tag == "span") { // Horizontal container
-             auto w = std::make_shared<QWidget>();
-            el->widget = w;
-            el->layout = std::make_shared<QHBoxLayout>(w.get());
+            el->widget = new QWidget();
+            el->layout = new QVBoxLayout(el->widget);
+        } else if (tag == "span") {
+            el->widget = new QWidget();
+            el->layout = new QHBoxLayout(el->widget);
         } else if (tag == "button") {
-            el->widget = std::make_shared<QPushButton>();
+            el->widget = new QPushButton();
         } else if (tag == "label") {
-            el->widget = std::make_shared<QLabel>();
+            el->widget = new QLabel();
         } else if (tag == "input") {
-            el->widget = std::make_shared<QLineEdit>();
+            el->widget = new QLineEdit();
+        } else if (tag == "list") {
+            el->widget = new QListWidget();
         } else if (tag == "window") {
-             auto w = std::make_shared<QWidget>();
-             el->widget = w;
-             el->layout = std::make_shared<QVBoxLayout>(w.get());
-             w->resize(400, 300); // Default size
+            el->widget = new QWidget();
+            el->layout = new QVBoxLayout(el->widget);
+            el->widget->resize(400, 300);
         }
-        
+
         return el;
     }
 };
-
-// Global document instance
-// Accessible in Riri as 'document' via code gen mapping?
-// Or we just instantiate 'Document document;' in main?
-// No, Riri code needs to access it. 
-// We will modify main() generation or provide a "getDocument()" built-in.
-// Simpler: Just allow user to 'let document = new Document();' 
-// But Document state?
-// Let's make Document struct have no state, just factory methods.
 `;
         }
 
         cppCode += "\n";
 
         // Helper for printing
+        // Helper for printing
         cppCode += `
 template <typename T>
 void print_val(T t) {
-    if constexpr (std::is_same_v<T, std::string> || std::is_same_v<T, const char*>) {
+    if constexpr(std::is_same_v<T, std::string> || std::is_same_v<T, const char*>) {
         std::cout << t;
     } else {
         std::cout << t;
     }
 }
 void print_val(const char* t) { std::cout << t; }
-\n`;
+`;
 
         // Add built-in libraries
         cppCode += this.getBuiltinLibraries();
 
         const classes: string[] = [];
-        const functions: string[] = [];
         const mainBody: string[] = [];
+
+        // Forward declare functions so they can be called recursively or out of order?
+        // No, lambdas can't recurse easily with 'auto'. We assume topological sort or forward declare with explicit std::function if needed.
+        // For now, assume defined-before-use (script logic).
 
         for (const stmt of this.program.body) {
             if (stmt.kind === NodeType.ClassDeclaration) {
                 classes.push(this.genClassDeclaration(stmt as ClassDeclaration));
-            } else if (stmt.kind === NodeType.FunctionDeclaration) {
-                // Functions usually return 'auto' in our system
-                functions.push(this.genFuncDeclaration(stmt as FunctionDeclaration));
             } else {
+                // Everything else goes into main() sequentially
                 mainBody.push(this.genStatement(stmt));
             }
         }
 
-        // Add classes (forward declaration might be needed but for now sequential)
+        // Add classes
         for (const cls of classes) {
             cppCode += cls;
         }
 
-        // Add functions
-        for (const func of functions) {
-            cppCode += func;
+        // Add main function
+        cppCode += "int main(int argc, char *argv[]) {\n";
+
+        if (this.options.qt) {
+            cppCode += "QApplication app(argc, argv);\n";
+            // Initialize global document
+            cppCode += "Document document;\n";
+        } else {
+            cppCode += "std::srand(std::time(0));\n";
         }
 
-        // Add main function
-        cppCode += "int main() {\n";
-        cppCode += "std::srand(std::time(0));\n";
         for (const stmt of mainBody) {
             cppCode += stmt;
         }
-        cppCode += "return 0;\n}\n";
+
+        if (this.options.qt) {
+            cppCode += "return app.exec();\n";
+        } else {
+            cppCode += "return 0;\n";
+        }
+        cppCode += "}\n";
 
         return cppCode;
     }
@@ -242,40 +632,41 @@ void print_val(const char* t) { std::cout << t; }
                 // Only throw if strictly unknown and unhandled.
                 // But we see it didn't throw before? Maybe switch covered it?
                 // Or maybe parser returned FunctionDeclaration for class? No.
-                throw new Error(`Unknown statement kind: ${stmt.kind}`);
+                throw new Error(`Unknown statement kind: ${stmt.kind} `);
         }
     }
 
     private genVarDeclaration(stmt: VariableDeclaration): string {
         if (!stmt.value) {
-            return `int ${stmt.identifier};\n`;
+            return `int ${stmt.identifier}; \n`;
         }
 
-        return `auto ${stmt.identifier} = ${this.genExpression(stmt.value)};\n`;
+        return `auto ${stmt.identifier} = ${this.genExpression(stmt.value)}; \n`;
     }
 
     private genFuncDeclaration(stmt: FunctionDeclaration): string {
         // Use C++20 auto template parameters
-        const params = stmt.params.map(p => `auto ${p}`).join(", ");
-        // Return type 'auto'
+        const params = stmt.params.map(p => `auto ${p} `).join(", ");
 
         let body = "{\n";
         for (const s of stmt.body) {
             body += this.genStatement(s);
         }
-        body += "}\n\n";
+        body += "}";
 
         const funcName = stmt.name === "main" ? "riri_main" : stmt.name;
-        return `auto ${funcName}(${params}) ${body}`;
+        // Generate as lambda to capture local scope defined before it
+        return `auto ${funcName} =[&](${params}) ${body}; \n`;
     }
 
     private genReturnStatement(stmt: ReturnStatement): string {
         if (!stmt.value) return "return;\n";
-        return `return ${this.genExpression(stmt.value)};\n`;
+        return `return ${this.genExpression(stmt.value)}; \n`;
     }
 
     private genIfStatement(stmt: IfStatement): string {
-        let code = `if (${this.genExpression(stmt.condition)}) {\n`;
+        let code = `if (${this.genExpression(stmt.condition)}) {
+        \n`;
         for (const s of stmt.thenBranch) {
             code += this.genStatement(s);
         }
@@ -293,7 +684,8 @@ void print_val(const char* t) { std::cout << t; }
     }
 
     private genWhileStatement(stmt: WhileStatement): string {
-        let code = `while (${this.genExpression(stmt.condition)}) {\n`;
+        let code = `while (${this.genExpression(stmt.condition)}) {
+            \n`;
         for (const s of stmt.body) {
             code += this.genStatement(s);
         }
@@ -334,7 +726,8 @@ void print_val(const char* t) { std::cout << t; }
     }
 
     private genClassDeclaration(stmt: ClassDeclaration): string {
-        let code = `struct ${stmt.name} {\n`;
+        let code = `struct ${stmt.name} {
+                \n`;
 
         // Fields
         for (const f of stmt.fields) {
@@ -346,26 +739,26 @@ void print_val(const char* t) { std::cout << t; }
                 else if (val.kind === NodeType.NumericLiteral) {
                     if ((val as NumericLiteral).value.toString().includes(".")) type = "double";
                 }
-                else if (val.kind === NodeType.NewExpression) type = `std::shared_ptr<${(val as NewExpression).className}>`;
+                else if (val.kind === NodeType.NewExpression) type = `std:: shared_ptr < ${(val as NewExpression).className}> `;
                 else if (val.kind === NodeType.Identifier) {
                     const s = (val as Identifier).symbol;
                     if (s === "true" || s === "false") type = "bool";
                 }
-                code += `    ${type} ${f.identifier} = ${this.genExpression(val)};\n`;
+                code += `    ${type} ${f.identifier} = ${this.genExpression(val)}; \n`;
             } else {
-                code += `    int ${f.identifier};\n`;
+                code += `    int ${f.identifier}; \n`;
             }
         }
 
         // Methods
         for (const m of stmt.methods) {
-            const params = m.params.map((p: any) => `auto ${p}`).join(", ");
+            const params = m.params.map((p: any) => `auto ${p} `).join(", ");
             let body = "{\n";
             for (const s of m.body) {
                 body += this.genStatement(s);
             }
             body += "}\n";
-            code += `    auto ${m.name}(${params}) ${body}`;
+            code += `    auto ${m.name} (${params}) ${body} `;
         }
 
         code += "};\n";
@@ -373,7 +766,7 @@ void print_val(const char* t) { std::cout << t; }
     }
 
     private genExprStatement(stmt: ExpressionStatement): string {
-        return `${this.genExpression(stmt.expression)};\n`;
+        return `${this.genExpression(stmt.expression)}; \n`;
     }
 
     // --- Expressions ---
@@ -394,11 +787,13 @@ void print_val(const char* t) { std::cout << t; }
                 return this.genAssignmentExpr(expr as AssignmentExpression);
             case NodeType.Identifier:
                 const symbol = (expr as Identifier).symbol;
+                if (symbol === "null") return "nullptr";
+                // JWT is a struct in C++, so passing "JWT" works fine as class name for static methods
                 return symbol === "main" ? "riri_main" : symbol;
             case NodeType.NumericLiteral:
                 return (expr as NumericLiteral).value.toString();
             case NodeType.StringLiteral:
-                return `std::string("${(expr as StringLiteral).value}")`;
+                return `std:: string("${(expr as StringLiteral).value}")`;
             case NodeType.ArrayLiteral:
                 return this.genArrayLiteral(expr as ArrayLiteral);
             case NodeType.AwaitExpression:
@@ -418,7 +813,7 @@ void print_val(const char* t) { std::cout << t; }
                 const cond = expr as ConditionalExpression;
                 return `(${this.genExpression(cond.test)} ? ${this.genExpression(cond.consequent)} : ${this.genExpression(cond.alternate)})`;
             default:
-                throw new Error(`Unknown expression kind: ${expr.kind}`);
+                throw new Error(`Unknown expression kind: ${expr.kind} `);
         }
     }
 
@@ -432,7 +827,7 @@ void print_val(const char* t) { std::cout << t; }
             .map((p: any) => {
                 if (p === "req") return "const httplib::Request& req";
                 if (p === "res") return "httplib::Response& res";
-                return `auto ${p}`;
+                return `auto ${p} `;
             })
             .join(", ");
 
@@ -445,7 +840,7 @@ void print_val(const char* t) { std::cout << t; }
             }
         } else {
             // Single expression body - wrap in return statement
-            body += `return ${this.genExpression(expr.body)};\n`;
+            body += `return ${this.genExpression(expr.body)}; \n`;
         }
 
         // If original params included 'next', this is middleware - return Unhandled
@@ -455,7 +850,7 @@ void print_val(const char* t) { std::cout << t; }
 
         body += "}";
 
-        return `[=](${params}) ${body}`;
+        return `[&](${params}) ${body} `;
     }
 
     private genIndexExpr(expr: MemberExpression): string {
@@ -473,31 +868,26 @@ void print_val(const char* t) { std::cout << t; }
             return `_riri_get_query(${objExp}, ${indexExp})`;
         }
 
-        return `${objExp}[${indexExp}]`;
+        return `${objExp} [${indexExp}]`;
     }
 
     private genAssignmentExpr(expr: AssignmentExpression): string {
         const left = this.genExpression(expr.assignee);
         const right = this.genExpression(expr.value);
-        return `${left} = ${right}`;
+        return `${left} = ${right} `;
     }
 
     private genBinaryExpr(expr: BinaryExpression): string {
-        return `${this.genExpression(expr.left)} ${expr.operator} ${this.genExpression(expr.right)}`;
+        return `${this.genExpression(expr.left)} ${expr.operator} ${this.genExpression(expr.right)} `;
     }
 
     private genArrayLiteral(expr: ArrayLiteral): string {
         const elements = expr.elements.map(e => this.genExpression(e)).join(", ");
 
-        let type = "int";
-        if (expr.elements.length > 0) {
-            const first = expr.elements[0];
-            if (first.kind === NodeType.StringLiteral) {
-                type = "std::string";
-            }
+        if (expr.elements.length === 0) {
+            return "std::vector<int>{}";
         }
-
-        return `std::vector<${type}>{${elements}}`;
+        return `std::vector{${elements} } `;
     }
 
     private genCallExpr(expr: CallExpression): string {
@@ -517,7 +907,7 @@ void print_val(const char* t) { std::cout << t; }
                     if (member.property === "random") {
                         mathFunc = "((double)std::rand() / (RAND_MAX))";
                     } else {
-                        mathFunc = `std::${member.property}`;
+                        mathFunc = `std::${member.property} `;
                     }
                 }
             }
@@ -528,14 +918,14 @@ void print_val(const char* t) { std::cout << t; }
                 return mathFunc;
             }
             const args = expr.args.map(a => this.genExpression(a)).join(", ");
-            return `${mathFunc}(${args})`;
+            return `${mathFunc} (${args})`;
         }
 
         const callee = this.genExpression(expr.callee);
 
         if (callee === "print") {
             const printArgs = expr.args.map(a => this.genExpression(a)).join(" << \" \" << ");
-            return `std::cout << ${printArgs} << std::endl`;
+            return `std:: cout << ${printArgs} << std:: endl`;
         }
 
         // Support console.table -> tprint
@@ -556,7 +946,7 @@ void print_val(const char* t) { std::cout << t; }
                 const obj = (member.object as Identifier).symbol;
                 if (obj === "console" && member.property === "table") {
                     const args = expr.args.map(a => this.genExpression(a)).join(", ");
-                    return `_riri_tprint(${args});\n`;
+                    return `_riri_tprint(${args}); \n`;
                 }
             }
         }
@@ -564,26 +954,63 @@ void print_val(const char* t) { std::cout << t; }
         if (callee === "tprint") {
             // tprint(arr)
             const args = expr.args.map(a => this.genExpression(a)).join(", ");
-            return `_riri_tprint(${args});\n`;
+            return `_riri_tprint(${args}); \n`;
         }
 
+        if (callee === "createList") {
+            return `_riri_create_list()`;
+        }
+        if (callee === "msgBox") {
+            const arg = this.genExpression(expr.args[0]);
+            return `_riri_msg_box(${arg})`;
+        }
         if (callee === "fetch") {
-            // fetch(url)
-            const args = expr.args.map(a => this.genExpression(a)).join(", ");
-            return `_riri_fetch(${args})`;
+            const url = this.genExpression(expr.args[0]);
+            const token = expr.args[1] ? this.genExpression(expr.args[1]) : `""`;
+            return `_riri_fetch_get(${url}, ${token})`;
+        }
+        if (callee === "post") {
+            const url = this.genExpression(expr.args[0]);
+            const body = this.genExpression(expr.args[1]);
+            const token = expr.args[2] ? this.genExpression(expr.args[2]) : `""`;
+            return `_riri_fetch_post(${url}, ${body}, ${token})`;
+        }
+
+        // Database functions
+        if (callee === "dbInit") {
+            const path = expr.args[0] ? this.genExpression(expr.args[0]) : `"riri.db"`;
+            return `_riri_db_init(${path})`;
+        }
+        if (callee === "dbExec") {
+            const sql = this.genExpression(expr.args[0]);
+            return `_riri_db_exec(${sql})`;
+        }
+        if (callee === "dbQuery") {
+            const sql = this.genExpression(expr.args[0]);
+            return `_riri_db_query(${sql})`;
+        }
+        if (callee === "dbLastId") {
+            return `_riri_db_last_id()`;
+        }
+        if (callee === "escapeSql") {
+            const str = this.genExpression(expr.args[0]);
+            return `_riri_escape_sql(${str})`;
         }
 
         if (callee === "sort") {
             const arg = this.genExpression(expr.args[0]);
-            return `std::sort(${arg}.begin(), ${arg}.end())`;
+            return `std:: sort(${arg}.begin(), ${arg}.end())`;
         } else if (callee === "string") {
             const arg = this.genExpression(expr.args[0]);
-            return `std::to_string(${arg})`;
+            return `std:: to_string(${arg})`;
+        } else if (callee === "int") {
+            const arg = this.genExpression(expr.args[0]);
+            return `std::stoi(${arg})`;
         } else if (callee === "float") {
             const arg = this.genExpression(expr.args[0]);
-            return `std::stod(${arg})`;
+            return `std:: stod(${arg})`;
         } else if (callee === "rand") {
-            return `std::rand()`;
+            return `std:: rand()`;
         } else if (callee === "delay") {
             // delay(milliseconds) - sleep for specified time
             const arg = this.genExpression(expr.args[0]);
@@ -598,6 +1025,18 @@ void print_val(const char* t) { std::cout << t; }
         if (expr.callee.kind === NodeType.MemberExpression) {
             const member = expr.callee as MemberExpression;
             const method = member.property;
+
+            // Qt List Methods
+            if (method === "add") {
+                // Check if list? We assume yes for now given limited riri standard lib
+                const obj = this.genExpression(member.object);
+                const item = this.genExpression(expr.args[0 as any]); // Fix TS error args index
+                return `_riri_list_add(${obj}, ${item})`;
+            }
+            if (method === "clear") {
+                const obj = this.genExpression(member.object);
+                return `_riri_list_clear(${obj})`;
+            }
 
             // Special case: length() - genMemberExpr already adds ()
             if (method === "length") {
@@ -648,6 +1087,15 @@ void print_val(const char* t) { std::cout << t; }
                 const sep = expr.args[0] ? this.genExpression(expr.args[0]) : '","';
                 return `_riri_join(${obj}, ${sep})`;
             }
+
+            // Static JSON calls
+            if (member.object.kind === NodeType.Identifier && (member.object as Identifier).symbol === "JSON") {
+                if (method === "get") {
+                    const arg0 = this.genExpression(expr.args[0]);
+                    const arg1 = this.genExpression(expr.args[1]);
+                    return `JSON:: get(${arg0}, ${arg1})`;
+                }
+            }
             if (method === "concat") {
                 const obj = this.genExpression(member.object);
                 const other = this.genExpression(expr.args[0]);
@@ -688,7 +1136,7 @@ void print_val(const char* t) { std::cout << t; }
             // Server methods
             if (method === "listen") {
                 const port = this.genExpression(expr.args[0]);
-                return `${this.genExpression(member.object)}->listen("0.0.0.0", ${port})`;
+                return `${this.genExpression(member.object)} -> listen("0.0.0.0", ${port})`;
             }
 
             if (typeof method === 'string' && ["get", "post", "put", "delete"].includes(method)) {
@@ -706,7 +1154,7 @@ void print_val(const char* t) { std::cout << t; }
 
                     // Capitalize method for httplib: Get, Post, Put, Delete
                     const httpMethod = method.charAt(0).toUpperCase() + method.slice(1);
-                    return `${this.genExpression(member.object)}->${httpMethod}(${path}, ${callback})`;
+                    return `${this.genExpression(member.object)} -> ${httpMethod} (${path}, ${callback})`;
                 }
             }
 
@@ -714,7 +1162,7 @@ void print_val(const char* t) { std::cout << t; }
                 // app.use((req, res, next) => { ... })
                 // httplib set_pre_routing_handler
                 const callback = this.genExpression(expr.args[0]);
-                return `${this.genExpression(member.object)}->set_pre_routing_handler(${callback})`;
+                return `${this.genExpression(member.object)} -> set_pre_routing_handler(${callback})`;
             }
 
             // Response methods (res.send, res.json)
@@ -730,7 +1178,7 @@ void print_val(const char* t) { std::cout << t; }
             }
             if (method === "status") {
                 const code = this.genExpression(expr.args[0]);
-                return `${this.genExpression(member.object)}.status = ${code}`;
+                return `${this.genExpression(member.object)}.status = ${code} `;
             }
 
             if (member.property === "push") {
@@ -744,6 +1192,23 @@ void print_val(const char* t) { std::cout << t; }
                 const obj = this.genExpression(member.object);
                 return `_riri_pop(${obj})`;
             }
+            if (member.property === "get_param_value") {
+                const obj = this.genExpression(member.object);
+                const arg = this.genExpression(expr.args[0]);
+                return `${obj}.get_param_value(${arg})`;
+            }
+            if (member.property === "get_header_value") {
+                const obj = this.genExpression(member.object);
+                const arg = this.genExpression(expr.args[0]);
+                return `${obj}.get_header_value(${arg})`;
+            }
+            if (member.property === "startsWith") {
+                // For strings: str.startsWith(prefix) -> str.rfind(prefix, 0) == 0
+                // Or create helper _riri_startsWith(str, prefix)
+                const obj = this.genExpression(member.object);
+                const arg = this.genExpression(expr.args[0]);
+                return `_riri_startsWith(${obj}, ${arg})`;
+            }
         }
 
         if (expr.callee.kind === NodeType.MemberExpression) {
@@ -755,19 +1220,22 @@ void print_val(const char* t) { std::cout << t; }
             if (member.property === "count" || member.property === "find") {
                 if (objExp.endsWith(".params") || objExp.endsWith(".path_params")) {
                     const args = expr.args.map(a => this.genExpression(a)).join(", ");
-                    return `${objExp}.${member.property}(${args})`;
+                    return `${objExp}.${member.property} (${args})`;
                 }
             }
         }
 
         const args = expr.args.map(a => this.genExpression(a)).join(", ");
-        return `${callee}(${args})`;
+        return `${callee} (${args})`;
     }
 
     private genSwitchStatement(stmt: SwitchStatement): string {
-        let code = `switch (${this.genExpression(stmt.discriminant)}) {\n`;
+        let code = `switch (${this.genExpression(stmt.discriminant)
+            }) {
+            \n`;
         for (const c of stmt.cases) {
-            code += `case ${this.genExpression(c.test)}: {\n`;
+            code += `case ${this.genExpression(c.test)}: {
+                \n`;
             for (const s of c.consequent) {
                 code += this.genStatement(s);
             }
@@ -790,11 +1258,11 @@ void print_val(const char* t) { std::cout << t; }
 
         if (expr.className === "Server") {
             // httplib::Server is huge, use shared_ptr
-            return `std::make_shared<httplib::Server>()`;
+            return `std:: make_shared < httplib:: Server > ()`;
         }
 
         // Use std::make_shared for ARC
-        return `std::make_shared<${expr.className}>(${args})`;
+        return `std:: make_shared < ${expr.className}> (${args})`;
     }
 
     private genTryStatement(stmt: TryStatement): string {
@@ -809,21 +1277,22 @@ void print_val(const char* t) { std::cout << t; }
             // C++: catch (const std::exception& e) or catch (...)
             // For MVP, catch all or catch string?
             // If user did `catch (e)`, we can't easily infer type of e.
-            // Let's use `catch (...)` or `catch (const std::exception& e)` if we use exceptions.
+            // Let's use `catch (...)` or `catch (const std:: exception& e)` if we use exceptions.
             // Riri currently doesn't throw.
             // But system might (e.g. vector out of range? though [] is usually unchecked or segfault).
             // Let's support `catch (...)` for now.
 
             // If user provided param "e", we need to define it?
             // We can assume it's a string message?
-            // Hack: `catch (const std::exception& e)` and define variable `e`?
+            // Hack: `catch (const std:: exception& e)` and define variable `e`?
 
             if (stmt.catchParam) {
                 // Generate: catch (const std::exception& e) { std::string e_msg = e.what(); ... }
                 // We map the user identifier to a local string variable containing .what()
                 // Because users might want to print(e).
-                code += `catch (const std::exception& _e) {\n`;
-                code += `std::string ${stmt.catchParam} = _e.what();\n`;
+                code += `catch (const std:: exception& _e) {
+                    \n`;
+                code += `std::string ${stmt.catchParam} = _e.what(); \n`;
             } else {
                 code += "catch (...) {\n";
             }
@@ -899,28 +1368,28 @@ void print_val(const char* t) { std::cout << t; }
             // Or providing a polyfill?
             // Let's change the C++ `Heap` struct to use `push_back`? No, standard is `push`.
 
-            // Let's assume `push` on a bare identifier that isn't `new`ed is a vector?
+            // Let's assume `push` on a bare identifier that isn't `new `ed is a vector?
             // `let arr = [...]` -> value.
             // `let h = new Heap()` -> pointer.
 
             // Refined heuristic:
             // If we use `.` it must be a value.
-            // If we use `->` it must be a pointer.
+            // If we use `-> ` it must be a pointer.
 
             // If the property is `push` or `pop`:
             // 1. If it's a vector, we want `.push_back`.
-            // 2. If it's a heap (ptr), we want `->push`.
+            // 2. If it's a heap (ptr), we want `-> push`.
 
             // Can we compile `t.push` (dot) on a pointer? No. 
-            // Can we compile `t->push_back` on a vector? No.
+            // Can we compile `t -> push_back` on a vector? No.
 
             // Let's blindly try to support Riri `push` for both.
             // But we need to distinguish.
             // What if we rename Heap methods to `insert` / `remove` to avoid collision? 
             // Or what if we make Heap a value type?
 
-            // Structs are allocated with `new` -> returns pointer.
-            // Vectors are `std::vector` -> value.
+            // Structs are allocated with `new ` -> returns pointer.
+            // Vectors are `std:: vector` -> value.
 
             // Let's check `expr.object`.
             // If `expr.object` is a `NewExpression`, it's a pointer.
@@ -945,14 +1414,14 @@ void print_val(const char* t) { std::cout << t; }
             // `riri_push(heap, val)` -> heap->push(val)
 
             // But `genCallExpr` handles the call `obj.push(x)`.
-            // It currently transforms to `obj.push(x)` or `obj->push(x)`.
+            // It currently transforms to `obj.push(x)` or `obj -> push(x)`.
 
             // If we change `genMemberExpr` to returns a string...
             // If we use the helper `riri_push`, we need to change `genCallExpr`, not `genMemberExpr` (mostly).
 
             // Let's modify `genCallExpr` to intercept `push` and `pop`.
 
-            return `(${this.genExpression(expr.object)})->${expr.property}`;
+            return `(${this.genExpression(expr.object)}) -> ${expr.property} `;
         }
 
         // Handle array.length, string.length, vector.size
@@ -967,7 +1436,7 @@ void print_val(const char* t) { std::cout << t; }
                 return `${this.genExpression(expr.object)}.size()`;
             }
 
-            return `${this.genExpression(expr.object)}.${expr.property}`;
+            return `${this.genExpression(expr.object)}.${expr.property} `;
         }
 
         // Express-like mappings
@@ -990,591 +1459,618 @@ void print_val(const char* t) { std::cout << t; }
                 // NO, genCallExpr INSPECTS callee.
                 // If callee is member expression.
                 // It gets object.
-                // It returns `object->method`.
+                // It returns `object -> method`.
                 // We need to change genCallExpr logic.
             }
         }
 
+        // Detect static access for JWT
+        if (expr.object.kind === NodeType.Identifier) {
+            const symbol = (expr.object as Identifier).symbol;
+            if (symbol === "JWT") {
+                return `JWT::${expr.property} `;
+            }
+            if (symbol === "JSON") {
+                return `JSON::${expr.property} `;
+            }
+        }
+
+        // Special case for 'req.body' (httplib uses .body)
+        if (expr.object.kind === NodeType.Identifier && (expr.object as Identifier).symbol === "req" && expr.property === "body") {
+            return `req.body`;
+        }
+
+        // Special case for 'document' (Qt DOM implementation - value type)
+        if (expr.object.kind === NodeType.Identifier && (expr.object as Identifier).symbol === "document") {
+            return `document.${expr.property}`;
+        }
+
         // Default pointer access
-        return `(${this.genExpression(expr.object)})->${expr.property}`;
+        return `(${this.genExpression(expr.object)}) -> ${expr.property} `;
     }
 
-    // NOTE: genCallExpr handles the method invocation syntax `->` vs `.`
+    // NOTE: genCallExpr handles the method invocation syntax `-> ` vs `.`
     // We need to update genCallExpr logic separately.
 
     private getBuiltinLibraries(): string {
         return `
-// --- Built-in Helpers ---
+                        // --- Built-in Helpers ---
 
-// Async/Await support
-#include <thread>
-#include <chrono>
-#include <future>
+                        // Async/Await support
+                        #include <thread>
+                        #include <chrono>
+                        #include <future>
 
-template<typename Func>
-auto async_task(Func&& func) {
-    return std::async(std::launch::async, std::forward<Func>(func));
-}
+                        template < typename Func >
+                            auto async_task(Func && func) {
+                            return std:: async (std:: launch:: async, std:: forward<Func> (func));
+                        }
 
-void delay(int milliseconds) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-}
+                        void delay(int milliseconds) {
+                            std:: this_thread:: sleep_for(std:: chrono:: milliseconds(milliseconds));
+                        }
 
-template<typename T>
-T await_result(std::future<T>& future) {
-    return future.get();
-}
+                        template < typename T >
+                            T await_result(std:: future<T> & future) {
+                            return future.get();
+                        }
 
-// Helper to get from multimap (query)
-std::string _riri_get_query(const std::multimap<std::string, std::string>& m, std::string key) {
+                        // Helper to get from multimap (query)
+                        std::string _riri_get_query(const std:: multimap<std:: string, std:: string >& m, std::string key) {
     auto it = m.find(key);
-    if (it != m.end()) return it->second;
-    return "";
-}
+                            if (it != m.end()) return it -> second;
+                            return "";
+                        }
 
-// Helper to get from map (path params)
-std::string _riri_get_param(const std::unordered_map<std::string, std::string>& m, std::string key) {
-    if (m.count(key)) return m.at(key);
-    return "";
-}
+                        // Helper to get from map (path params)
+                        std::string _riri_get_param(const std:: unordered_map<std:: string, std:: string >& m, std::string key) {
+                            if (m.count(key)) return m.at(key);
+                            return "";
+                        }
 
-std::string _riri_input() {
-    std::string s;
-    std::getline(std::cin, s);
-    return s;
-}
+                        std::string _riri_input() {
+                            std::string s;
+                            std:: getline(std:: cin, s);
+                            return s;
+                        }
 
-// Overloads for push/pop to handle both std::vector (value) and Heap* (pointer)
+                        // Overloads for push/pop to handle both std::vector (value) and Heap* (pointer)
 
-// Vector push
-template <typename T>
-void _riri_push(std::vector<T>& vec, T val) {
-    vec.push_back(val);
-}
+                        // Vector push
+                        template < typename T, typename U >
+                            void _riri_push(std:: vector<T> & vec, U val) {
+                            vec.push_back(val);
+                        }
 
-// Heap/Object pointer push (raw)
-template <typename T>
-void _riri_push(T* obj, int val) {
-    obj->push(val);
-}
+                        // Heap/Object pointer push (raw)
+                        template < typename T >
+                            void _riri_push(T * obj, int val) {
+                            obj -> push(val);
+                        }
 
-// Heap/Object shared_ptr push
-template <typename T>
-void _riri_push(std::shared_ptr<T> obj, int val) {
-    obj->push(val);
-}
+                        // Heap/Object shared_ptr push
+                        template < typename T >
+                            void _riri_push(std:: shared_ptr < T > obj, int val) {
+                            obj -> push(val);
+                        }
 
-// Vector pop
-template <typename T>
-T _riri_pop(std::vector<T>& vec) {
-    if (vec.empty()) return T(); // Return default
+                        // Vector pop
+                        template < typename T >
+                            T _riri_pop(std:: vector<T> & vec) {
+                            if (vec.empty()) return T(); // Return default
     T val = vec.back();
-    vec.pop_back();
-    return val;
-}
+                            vec.pop_back();
+                            return val;
+                        }
 
-// Heap/Object pointer pop (raw)
-template <typename T>
-int _riri_pop(T* obj) {
-    return obj->pop();
-}
+                        // Heap/Object pointer pop (raw)
+                        template < typename T >
+                            int _riri_pop(T * obj) {
+                            return obj -> pop();
+                        }
 
-// Heap/Object shared_ptr pop
-template <typename T>
-int _riri_pop(std::shared_ptr<T> obj) {
-    return obj->pop();
-}
+                        // Heap/Object shared_ptr pop
+                        template < typename T >
+                            int _riri_pop(std:: shared_ptr < T > obj) {
+                            return obj -> pop();
+                        }
 
-std::string _riri_fetch(std::string url) {
-    std::string cmd = "curl -s " + url;
-    std::string result;
+                        std::string _riri_fetch(std:: string url) {
+                            std::string cmd = "curl -s " + url;
+                            std::string result;
     char buffer[128];
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) return "ERROR";
-    while (!feof(pipe)) {
-        if (fgets(buffer, 128, pipe) != NULL)
-            result += buffer;
-    }
-    pclose(pipe);
-    return result;
-}
+                            FILE * pipe = popen(cmd.c_str(), "r");
+                            if (!pipe) return "ERROR";
+                            while (!feof(pipe)) {
+                                if (fgets(buffer, 128, pipe) != NULL)
+                                    result += buffer;
+                            }
+                            pclose(pipe);
+                            return result;
+                        }
 
-// JavaScript-like array methods
-template<typename T, typename Func>
-std::vector<T> _riri_map(const std::vector<T>& vec, Func callback) {
-    std::vector<T> result;
-    for (size_t i = 0; i < vec.size(); i++) {
-        result.push_back(callback(vec[i]));
-    }
-    return result;
-}
+                        // JavaScript-like array methods
+                        template < typename T, typename Func >
+                            std:: vector < T > _riri_map(const std:: vector<T>& vec, Func callback) {
+                            std:: vector < T > result;
+                            for (size_t i = 0; i < vec.size(); i++) {
+                                result.push_back(callback(vec[i]));
+                            }
+                            return result;
+                        }
 
-template<typename T, typename Func>
-std::vector<T> _riri_filter(const std::vector<T>& vec, Func callback) {
-    std::vector<T> result;
-    for (size_t i = 0; i < vec.size(); i++) {
-        if (callback(vec[i])) {
-            result.push_back(vec[i]);
-        }
-    }
-    return result;
-}
+                        template < typename T, typename Func >
+                            std:: vector < T > _riri_filter(const std:: vector<T>& vec, Func callback) {
+                            std:: vector < T > result;
+                            for (size_t i = 0; i < vec.size(); i++) {
+                                if (callback(vec[i])) {
+                                    result.push_back(vec[i]);
+                                }
+                            }
+                            return result;
+                        }
 
-template<typename T>
-std::vector<T> _riri_slice(const std::vector<T>& vec, int start, int end = -1) {
-    if (end == -1) end = vec.size();
-    if (start < 0) start = vec.size() + start;
-    if (end < 0) end = vec.size() + end;
-    if (start < 0) start = 0;
-    if (end > (int)vec.size()) end = vec.size();
-    if (start >= end) return std::vector<T>();
-    return std::vector<T>(vec.begin() + start, vec.begin() + end);
-}
+                        template < typename T >
+                            std:: vector < T > _riri_slice(const std:: vector<T>& vec, int start, int end = -1) {
+                            if (end == -1) end = vec.size();
+                            if (start < 0) start = vec.size() + start;
+                            if (end < 0) end = vec.size() + end;
+                            if (start < 0) start = 0;
+                            if (end > (int)vec.size()) end = vec.size();
+                            if (start >= end) return std:: vector<T>();
+                            return std:: vector<T>(vec.begin() + start, vec.begin() + end);
+                        }
 
-template<typename T, typename Func>
-void _riri_forEach(const std::vector<T>& vec, Func callback) {
-    for (size_t i = 0; i < vec.size(); i++) {
-        callback(vec[i], i);
-    }
-}
+                        template < typename T, typename Func >
+                            void _riri_forEach(const std:: vector<T>& vec, Func callback) {
+                            for (size_t i = 0; i < vec.size(); i++) {
+                                callback(vec[i], i);
+                            }
+                        }
 
-template<typename T, typename Func>
-T _riri_reduce(const std::vector<T>& vec, Func callback, T initial) {
+                        template < typename T, typename Func >
+                            T _riri_reduce(const std:: vector<T>& vec, Func callback, T initial) {
     T result = initial;
-    for (size_t i = 0; i < vec.size(); i++) {
-        result = callback(result, vec[i], i);
-    }
-    return result;
-}
+                            for (size_t i = 0; i < vec.size(); i++) {
+                                result = callback(result, vec[i], i);
+                            }
+                            return result;
+                        }
 
-template<typename T>
-int _riri_indexOf(const std::vector<T>& vec, T value) {
-    for (size_t i = 0; i < vec.size(); i++) {
-        if (vec[i] == value) return i;
-    }
-    return -1;
-}
+                        template < typename T >
+                            int _riri_indexOf(const std:: vector<T>& vec, T value) {
+                            for (size_t i = 0; i < vec.size(); i++) {
+                                if (vec[i] == value) return i;
+                            }
+                            return -1;
+                        }
 
-template<typename T>
-bool _riri_includes(const std::vector<T>& vec, T value) {
-    return _riri_indexOf(vec, value) != -1;
-}
+                        template < typename T >
+                            bool _riri_includes(const std:: vector<T>& vec, T value) {
+                            return _riri_indexOf(vec, value) != -1;
+                        }
 
-template<typename T>
-std::vector<T> _riri_concat(const std::vector<T>& vec1, const std::vector<T>& vec2) {
-    std::vector<T> result = vec1;
-    result.insert(result.end(), vec2.begin(), vec2.end());
-    return result;
-}
+                        template < typename T >
+                            std:: vector < T > _riri_concat(const std:: vector<T>& vec1, const std:: vector<T>& vec2) {
+                            std:: vector < T > result = vec1;
+                            result.insert(result.end(), vec2.begin(), vec2.end());
+                            return result;
+                        }
 
-template<typename T>
-std::vector<T> _riri_reverse(std::vector<T> vec) {
-    std::reverse(vec.begin(), vec.end());
-    return vec;
-}
+                        template < typename T >
+                            std:: vector < T > _riri_reverse(std:: vector < T > vec) {
+                            std:: reverse(vec.begin(), vec.end());
+                            return vec;
+                        }
 
-template<typename T>
-std::string _riri_join(const std::vector<T>& vec, std::string separator = ",") {
-    if (vec.empty()) return "";
-    std::ostringstream oss;
-    oss << vec[0];
-    for (size_t i = 1; i < vec.size(); i++) {
-        oss << separator << vec[i];
-    }
-    return oss.str();
-}
+                        template < typename T >
+                            std::string _riri_join(const std:: vector<T>& vec, std::string separator = ",") {
+                            if (vec.empty()) return "";
+                            std::ostringstream oss;
+                            oss << vec[0];
+                            for (size_t i = 1; i < vec.size(); i++) {
+                                oss << separator << vec[i];
+                            }
+                            return oss.str();
+                        }
 
-// String methods
-std::vector<std::string> _riri_split(std::string str, std::string delimiter) {
-    std::vector<std::string> result;
+                        // String methods
+                        std:: vector < std:: string > _riri_split(std:: string str, std:: string delimiter) {
+                            std:: vector < std:: string > result;
     size_t pos = 0;
-    while ((pos = str.find(delimiter)) != std::string::npos) {
-        result.push_back(str.substr(0, pos));
-        str.erase(0, pos + delimiter.length());
-    }
-    result.push_back(str);
-    return result;
-}
+                            while ((pos = str.find(delimiter)) != std:: string::npos) {
+                                result.push_back(str.substr(0, pos));
+                                str.erase(0, pos + delimiter.length());
+                            }
+                            result.push_back(str);
+                            return result;
+                        }
 
-std::string _riri_toLowerCase(std::string str) {
-    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-    return str;
-}
+                        std::string _riri_toLowerCase(std:: string str) {
+                            std:: transform(str.begin(), str.end(), str.begin(), :: tolower);
+                            return str;
+                        }
 
-std::string _riri_toUpperCase(std::string str) {
-    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-    return str;
-}
+                        std::string _riri_toUpperCase(std:: string str) {
+                            std:: transform(str.begin(), str.end(), str.begin(), :: toupper);
+                            return str;
+                        }
 
-std::string _riri_trim(std::string str) {
-    str.erase(0, str.find_first_not_of(" \\t\\n\\r"));
-    str.erase(str.find_last_not_of(" \\t\\n\\r") + 1);
-    return str;
-}
+                        std::string _riri_trim(std:: string str) {
+                            str.erase(0, str.find_first_not_of(" \\t\\n\\r"));
+                            str.erase(str.find_last_not_of(" \\t\\n\\r") + 1);
+                            return str;
+                        }
 
-int _riri_parseInt(std::string str) {
-    return std::stoi(str);
-}
+bool _riri_startsWith(std:: string str, std:: string prefix) {
+                            return str.rfind(prefix, 0) == 0;
+                        }
 
-double _riri_parseFloat(std::string str) {
-    return std::stod(str);
-}
+int _riri_parseInt(std:: string str) {
+                            return std:: stoi(str);
+                        }
 
-template <typename T>
-void _riri_tprint(const std::vector<T>& vec) {
-    std::cout << "+----------------+" << std::endl;
-    std::cout << "| Index | Value  |" << std::endl;
-    std::cout << "+----------------+" << std::endl;
-    for (size_t i = 0; i < vec.size(); ++i) {
-        std::cout << "| " << i << "\\t| " << vec[i] << "\\t|" << std::endl;
-    }
-    std::cout << "+----------------+" << std::endl;
-}
+double _riri_parseFloat(std:: string str) {
+                            return std:: stod(str);
+                        }
+
+                        template < typename T >
+                            void _riri_tprint(const std:: vector<T>& vec) {
+                            std:: cout << "+----------------+" << std:: endl;
+                            std:: cout << "| Index | Value  |" << std:: endl;
+                            std:: cout << "+----------------+" << std:: endl;
+                            for (size_t i = 0; i < vec.size(); ++i) {
+                                std:: cout << "| " << i << "\\t| " << vec[i] << "\\t|" << std:: endl;
+                            }
+                            std:: cout << "+----------------+" << std:: endl;
+                        }
 
 // --- Built-in Tree Library ---
 
 struct Node {
     int data;
-    std::shared_ptr<Node> left = nullptr;
-    std::shared_ptr<Node> right = nullptr;
+                            std:: shared_ptr < Node > left = nullptr;
+                            std:: shared_ptr < Node > right = nullptr;
     int height = 1; // For AVL
 
-    Node(int val) : data(val) {}
-};
+                            Node(int val) : data(val) { }
+                        };
 
 struct BinaryTree {
-    std::shared_ptr<Node> root = nullptr;
+                            std:: shared_ptr < Node > root = nullptr;
 
-    void insert(int val) {
-        if (!root) {
-            root = std::make_shared<Node>(val);
-            return;
-        }
-        insertRec(root, val);
-    }
-    
-    void insertRec(std::shared_ptr<Node> node, int val) {
-        if (val < node->data) {
-            if (node->left) insertRec(node->left, val);
-            else node->left = std::make_shared<Node>(val);
-        } else {
-            if (node->right) insertRec(node->right, val);
-            else node->right = std::make_shared<Node>(val);
-        }
-    }
+                            void insert(int val) {
+                                if (!root) {
+                                    root = std:: make_shared<Node>(val);
+                                    return;
+                                }
+                                insertRec(root, val);
+                            }
 
-    void printInOrder() {
-        printInOrderRec(root);
-        std::cout << std::endl;
-    }
+                            void insertRec(std:: shared_ptr < Node > node, int val) {
+                                if (val < node -> data) {
+                                    if (node -> left) insertRec(node -> left, val);
+                                    else node -> left = std:: make_shared<Node>(val);
+                                } else {
+                                    if (node -> right) insertRec(node -> right, val);
+                                    else node -> right = std:: make_shared<Node>(val);
+                                }
+                            }
 
-    void printInOrderRec(std::shared_ptr<Node> node) {
-        if (!node) return;
-        printInOrderRec(node->left);
-        std::cout << node->data << " ";
-        printInOrderRec(node->right);
-    }
-};
+                            void printInOrder() {
+                                printInOrderRec(root);
+                                std:: cout << std:: endl;
+                            }
 
-struct BST : public BinaryTree {
+                            void printInOrderRec(std:: shared_ptr < Node > node) {
+                                if (!node) return;
+                                printInOrderRec(node -> left);
+                                std:: cout << node -> data << " ";
+                                printInOrderRec(node -> right);
+                            }
+                        };
+
+struct BST: public BinaryTree {
     // Inherits insert and print from BinaryTree (which is basically a BST logic above)
     bool search(int val) {
-        return searchRec(root, val);
-    }
+                                return searchRec(root, val);
+                            }
 
-    bool searchRec(std::shared_ptr<Node> node, int val) {
-        if (!node) return false;
-        if (node->data == val) return true;
-        if (val < node->data) return searchRec(node->left, val);
-        return searchRec(node->right, val);
-    }
-};
+    bool searchRec(std:: shared_ptr < Node > node, int val) {
+                                if (!node) return false;
+                                if (node -> data == val) return true;
+                                if (val < node -> data) return searchRec(node -> left, val);
+                                return searchRec(node -> right, val);
+                            }
+                        };
 
 struct AVL {
-    std::shared_ptr<Node> root = nullptr;
+                            std:: shared_ptr < Node > root = nullptr;
 
-    int height(std::shared_ptr<Node> N) {
-        if (N == nullptr) return 0;
-        return N->height;
-    }
+    int height(std:: shared_ptr < Node > N) {
+                                if (N == nullptr) return 0;
+                                return N -> height;
+                            }
 
     int max(int a, int b) {
-        return (a > b) ? a : b;
-    }
+                                return (a > b) ? a : b;
+                            }
 
-    std::shared_ptr<Node> rightRotate(std::shared_ptr<Node> y) {
-        std::shared_ptr<Node> x = y->left;
-        std::shared_ptr<Node> T2 = x->right;
-        x->right = y;
-        y->left = T2;
-        y->height = max(height(y->left), height(y->right)) + 1;
-        x->height = max(height(x->left), height(x->right)) + 1;
-        return x;
-    }
+                            std:: shared_ptr < Node > rightRotate(std:: shared_ptr < Node > y) {
+                                std:: shared_ptr < Node > x = y -> left;
+                                std:: shared_ptr < Node > T2 = x -> right;
+                                x -> right = y;
+                                y -> left = T2;
+                                y -> height = max(height(y -> left), height(y -> right)) + 1;
+                                x -> height = max(height(x -> left), height(x -> right)) + 1;
+                                return x;
+                            }
 
-    std::shared_ptr<Node> leftRotate(std::shared_ptr<Node> x) {
-        std::shared_ptr<Node> y = x->right;
-        std::shared_ptr<Node> T2 = y->left;
-        y->left = x;
-        x->right = T2;
-        x->height = max(height(x->left), height(x->right)) + 1;
-        y->height = max(height(y->left), height(y->right)) + 1;
-        return y;
-    }
+                            std:: shared_ptr < Node > leftRotate(std:: shared_ptr < Node > x) {
+                                std:: shared_ptr < Node > y = x -> right;
+                                std:: shared_ptr < Node > T2 = y -> left;
+                                y -> left = x;
+                                x -> right = T2;
+                                x -> height = max(height(x -> left), height(x -> right)) + 1;
+                                y -> height = max(height(y -> left), height(y -> right)) + 1;
+                                return y;
+                            }
 
-    int getBalance(std::shared_ptr<Node> N) {
-        if (N == nullptr) return 0;
-        return height(N->left) - height(N->right);
-    }
+    int getBalance(std:: shared_ptr < Node > N) {
+                                if (N == nullptr) return 0;
+                                return height(N -> left) - height(N -> right);
+                            }
 
-    std::shared_ptr<Node> insertRec(std::shared_ptr<Node> node, int data) {
-        if (node == nullptr) return std::make_shared<Node>(data);
-        if (data < node->data) node->left = insertRec(node->left, data);
-        else if (data > node->data) node->right = insertRec(node->right, data);
+                            std:: shared_ptr < Node > insertRec(std:: shared_ptr < Node > node, int data) {
+                                if (node == nullptr) return std:: make_shared<Node>(data);
+                                if (data < node -> data) node -> left = insertRec(node -> left, data);
+        else if (data > node -> data) node -> right = insertRec(node -> right, data);
         else return node; // Equal keys not allowed
 
-        node->height = 1 + max(height(node->left), height(node->right));
+                                node -> height = 1 + max(height(node -> left), height(node -> right));
         int balance = getBalance(node);
 
-        // Left Left
-        if (balance > 1 && data < node->left->data) return rightRotate(node);
-        // Right Right
-        if (balance < -1 && data > node->right->data) return leftRotate(node);
-        // Left Right
-        if (balance > 1 && data > node->left->data) {
-            node->left = leftRotate(node->left);
-            return rightRotate(node);
-        }
-        // Right Left
-        if (balance < -1 && data < node->right->data) {
-            node->right = rightRotate(node->right);
-            return leftRotate(node);
-        }
-        return node;
-    }
+                                // Left Left
+                                if (balance > 1 && data < node -> left -> data) return rightRotate(node);
+                                // Right Right
+                                if (balance < -1 && data > node -> right -> data) return leftRotate(node);
+                                // Left Right
+                                if (balance > 1 && data > node -> left -> data) {
+                                    node -> left = leftRotate(node -> left);
+                                    return rightRotate(node);
+                                }
+                                // Right Left
+                                if (balance < -1 && data < node -> right -> data) {
+                                    node -> right = rightRotate(node -> right);
+                                    return leftRotate(node);
+                                }
+                                return node;
+                            }
 
-    void insert(int val) {
-        root = insertRec(root, val);
-    }
+                            void insert(int val) {
+                                root = insertRec(root, val);
+                            }
 
-    void printInOrder() {
-        printInOrderRec(root);
-        std::cout << std::endl;
-    }
+                            void printInOrder() {
+                                printInOrderRec(root);
+                                std:: cout << std:: endl;
+                            }
 
-    void printInOrderRec(std::shared_ptr<Node> node) {
-        if (!node) return;
-        printInOrderRec(node->left);
-        std::cout << node->data << " ";
-        printInOrderRec(node->right);
-    }
-};
+                            void printInOrderRec(std:: shared_ptr < Node > node) {
+                                if (!node) return;
+                                printInOrderRec(node -> left);
+                                std:: cout << node -> data << " ";
+                                printInOrderRec(node -> right);
+                            }
+                        };
 
 struct Heap {
-    std::vector<int> data;
+                            std:: vector < int > data;
 
-    void push(int val) {
-        data.push_back(val);
-        std::push_heap(data.begin(), data.end()); // Max heap by default
-    }
+                            void push(int val) {
+                                data.push_back(val);
+                                std:: push_heap(data.begin(), data.end()); // Max heap by default
+                            }
 
     int pop() {
-        if (data.empty()) return -1; // Error
-        std::pop_heap(data.begin(), data.end());
+                                if (data.empty()) return -1; // Error
+                                std:: pop_heap(data.begin(), data.end());
         int val = data.back();
-        data.pop_back();
-        return val;
-    }
+                                data.pop_back();
+                                return val;
+                            }
 
     int top() {
-        if (data.empty()) return -1;
-        return data.front();
-    }
-    
-    void print() {
-        for (int i : data) std::cout << i << " ";
-        std::cout << std::endl;
-    }
-};
+                                if (data.empty()) return -1;
+                                return data.front();
+                            }
+
+                            void print() {
+                                for (int i : data) std:: cout << i << " ";
+                                std:: cout << std:: endl;
+                            }
+                        };
 
 struct Graph {
-    std::map<int, std::vector<std::pair<int, int>>> adj; // u -> [(v, w)]
-    std::map<int, std::pair<int, int>> coords; // u -> (x, y)
+                            std:: map < int, std:: vector < std:: pair < int, int >>> adj; // u -> [(v, w)]
+                            std:: map < int, std:: pair < int, int >> coords; // u -> (x, y)
 
-    void add_edge(int u, int v, int w) {
-        adj[u].push_back({v, w});
-    }
+                            void add_edge(int u, int v, int w) {
+                                adj[u].push_back({ v, w });
+                            }
 
-    void set_pos(int u, int x, int y) {
-        coords[u] = {x, y};
-    }
+                            void set_pos(int u, int x, int y) {
+                                coords[u] = { x, y };
+                            }
 
-    std::vector<int> bfs(int start) {
-        std::vector<int> path;
-        std::queue<int> q;
-        std::set<int> visited;
+                            std:: vector < int > bfs(int start) {
+                                std:: vector < int > path;
+                                std:: queue < int > q;
+                                std:: set < int > visited;
 
-        q.push(start);
-        visited.insert(start);
+                                q.push(start);
+                                visited.insert(start);
 
-        while (!q.empty()) {
+                                while (!q.empty()) {
             int u = q.front();
-            q.pop();
-            path.push_back(u);
+                                    q.pop();
+                                    path.push_back(u);
 
-            for (auto& edge : adj[u]) {
+                                    for (auto & edge : adj[u]) {
                 int v = edge.first;
-                if (visited.find(v) == visited.end()) {
-                    visited.insert(v);
-                    q.push(v);
-                }
-            }
-        }
-        return path;
-    }
+                                        if (visited.find(v) == visited.end()) {
+                                            visited.insert(v);
+                                            q.push(v);
+                                        }
+                                    }
+                                }
+                                return path;
+                            }
 
-    std::vector<int> dfs(int start) {
-        std::vector<int> path;
-        std::stack<int> s;
-        std::set<int> visited;
+                            std:: vector < int > dfs(int start) {
+                                std:: vector < int > path;
+                                std:: stack < int > s;
+                                std:: set < int > visited;
 
-        s.push(start);
+                                s.push(start);
 
-        while (!s.empty()) {
+                                while (!s.empty()) {
             int u = s.top();
-            s.pop();
+                                    s.pop();
 
-            if (visited.find(u) == visited.end()) {
-                visited.insert(u);
-                path.push_back(u);
+                                    if (visited.find(u) == visited.end()) {
+                                        visited.insert(u);
+                                        path.push_back(u);
 
-                auto& neighbors = adj[u];
-                for (auto it = neighbors.rbegin(); it != neighbors.rend(); ++it) {
-                    int v = it->first;
-                    if (visited.find(v) == visited.end()) {
-                        s.push(v);
-                    }
-                }
-            }
-        }
-        return path;
-    }
+                                        auto & neighbors = adj[u];
+                                        for (auto it = neighbors.rbegin(); it != neighbors.rend(); ++it) {
+                    int v = it -> first;
+                                            if (visited.find(v) == visited.end()) {
+                                                s.push(v);
+                                            }
+                                        }
+                                    }
+                                }
+                                return path;
+                            }
 
-    std::vector<int> dijkstra(int start, int end) {
-        std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, std::greater<std::pair<int, int>>> pq;
-        std::map<int, int> dist;
-        std::map<int, int> parent;
+                            std:: vector < int > dijkstra(int start, int end) {
+                                std:: priority_queue < std:: pair<int, int>, std:: vector < std:: pair < int, int >>, std:: greater < std:: pair < int, int >>> pq;
+                                std:: map < int, int > dist;
+                                std:: map < int, int > parent;
 
-        dist[start] = 0;
-        pq.push({0, start});
-        
-        while (!pq.empty()) {
+                                dist[start] = 0;
+                                pq.push({ 0, start });
+
+                                while (!pq.empty()) {
             int d = pq.top().first;
             int u = pq.top().second;
-            pq.pop();
+                                    pq.pop();
 
-            if (dist.find(u) != dist.end() && d > dist[u]) continue;
-            if (u == end) break;
+                                    if (dist.find(u) != dist.end() && d > dist[u]) continue;
+                                    if (u == end) break;
 
-            for (auto& edge : adj[u]) {
+                                    for (auto & edge : adj[u]) {
                 int v = edge.first;
                 int weight = edge.second;
 
                 bool is_inf = dist.find(v) == dist.end();
-                if (is_inf || dist[u] + weight < dist[v]) {
-                    dist[v] = dist[u] + weight;
-                    parent[v] = u;
-                    pq.push({dist[v], v});
-                }
-            }
-        }
+                                        if (is_inf || dist[u] + weight < dist[v]) {
+                                            dist[v] = dist[u] + weight;
+                                            parent[v] = u;
+                                            pq.push({ dist[v], v });
+                                        }
+                                    }
+                                }
 
-        std::vector<int> path;
-        if (dist.find(end) == dist.end()) return path;
+                                std:: vector < int > path;
+                                if (dist.find(end) == dist.end()) return path;
 
         int curr = end;
-        while (curr != start) {
-            path.push_back(curr);
-            curr = parent[curr];
-        }
-        path.push_back(start);
-        std::reverse(path.begin(), path.end());
-        return path;
-    }
+                                while (curr != start) {
+                                    path.push_back(curr);
+                                    curr = parent[curr];
+                                }
+                                path.push_back(start);
+                                std:: reverse(path.begin(), path.end());
+                                return path;
+                            }
 
     double heuristic(int u, int v) {
-        if (coords.find(u) == coords.end() || coords.find(v) == coords.end()) return 0;
+                                if (coords.find(u) == coords.end() || coords.find(v) == coords.end()) return 0;
         int dx = coords[u].first - coords[v].first;
         int dy = coords[u].second - coords[v].second;
-        return std::sqrt(dx*dx + dy*dy);
-    }
+                                return std:: sqrt(dx * dx + dy * dy);
+                            }
 
-    std::vector<int> astar(int start, int end) {
-        std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, std::greater<std::pair<double, int>>> pq;
-        std::map<int, int> g_score;
-        std::map<int, int> parent;
-        
-        g_score[start] = 0;
-        pq.push({0 + heuristic(start, end), start});
+                            std:: vector < int > astar(int start, int end) {
+                                std:: priority_queue < std:: pair<double, int>, std:: vector < std:: pair < double, int >>, std:: greater < std:: pair < double, int >>> pq;
+                                std:: map < int, int > g_score;
+                                std:: map < int, int > parent;
 
-        while (!pq.empty()) {
+                                g_score[start] = 0;
+                                pq.push({ 0 + heuristic(start, end), start });
+
+                                while (!pq.empty()) {
             int u = pq.top().second;
-            pq.pop();
+                                    pq.pop();
 
-            if (u == end) break;
+                                    if (u == end) break;
 
-            for (auto& edge : adj[u]) {
+                                    for (auto & edge : adj[u]) {
                 int v = edge.first;
                 int weight = edge.second;
 
                 int tentative_g = g_score[u] + weight;
                 bool is_inf = g_score.find(v) == g_score.end();
 
-                if (is_inf || tentative_g < g_score[v]) {
-                    g_score[v] = tentative_g;
+                                        if (is_inf || tentative_g < g_score[v]) {
+                                            g_score[v] = tentative_g;
                     double f = tentative_g + heuristic(v, end);
-                    parent[v] = u;
-                    pq.push({f, v});
-                }
-            }
-        }
+                                            parent[v] = u;
+                                            pq.push({ f, v });
+                                        }
+                                    }
+                                }
 
-        std::vector<int> path;
-        if (g_score.find(end) == g_score.end()) return path;
+                                std:: vector < int > path;
+                                if (g_score.find(end) == g_score.end()) return path;
 
         int curr = end;
-        while (curr != start) {
-            path.push_back(curr);
-            curr = parent[curr];
-        }
-        path.push_back(start);
-        std::reverse(path.begin(), path.end());
-        return path;
-    }
-};
+                                while (curr != start) {
+                                    path.push_back(curr);
+                                    curr = parent[curr];
+                                }
+                                path.push_back(start);
+                                std:: reverse(path.begin(), path.end());
+                                return path;
+                            }
+                        };
 
 struct Regex {
-    std::regex re;
-    std::string pattern;
+                            std::regex re;
+                            std::string pattern;
 
-    Regex(std::string p) : pattern(p) {
-        try {
-            re = std::regex(p);
-        } catch (const std::regex_error& e) {
-            std::cerr << "Regex error: " << e.what() << std::endl;
-        }
+                            Regex(std:: string p) : pattern(p) {
+                                try {
+                                    re = std:: regex(p);
+                                } catch (const std:: regex_error& e) {
+                                    std:: cerr << "Regex error: " << e.what() << std:: endl;
+                                }
+                            }
+
+    bool match(std:: string s) {
+                                return std:: regex_search(s, re);
+                            }
+
+                            std::string replace(std:: string s, std:: string replacement) {
+                                return std:: regex_replace(s, re, replacement);
+                            }
+                        };
+
+                        // ---------------------------
+                        `;
     }
 
-    bool match(std::string s) {
-        return std::regex_search(s, re);
-    }
 
-    std::string replace(std::string s, std::string replacement) {
-        return std::regex_replace(s, re, replacement);
-    }
-};
-
-// ---------------------------
-`;
-    }
 }

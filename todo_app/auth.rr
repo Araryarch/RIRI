@@ -1,0 +1,95 @@
+import "./models.rr";
+import "./db.rr";
+
+func findUserByUsername(username) {
+    let safeUsername = escapeSql(username);
+    let rows = dbQuery("SELECT id, username, password, token FROM users WHERE username = '" + safeUsername + "' LIMIT 1");
+    
+    if (rows.length == 0) {
+        let notFound = new User();
+        notFound = null;
+        return notFound;
+    }
+    
+    let row = rows[0];
+    let user = new User();
+    user.id = int(row[0]);
+    user.username = row[1];
+    user.password = row[2];
+    user.token = row[3];
+    return user;
+}
+
+func generateToken(username) {
+    let payload = "{\"sub\": \"" + username + "\"}";
+    let token = JWT.sign(payload, "secret123");
+    return token;
+}
+
+func registerUser(username, password) {
+    if (username == "" || password == "") {
+        return "error: missing fields";
+    }
+
+    let existing = findUserByUsername(username);
+    if (existing != null) {
+        return "error: user exists";
+    }
+
+    let safeUsername = escapeSql(username);
+    let safePassword = escapeSql(password);
+    
+    let sql = "INSERT INTO users (username, password) VALUES ('" + safeUsername + "', '" + safePassword + "')";
+    let success = dbExec(sql);
+    
+    if (success) {
+        return "success";
+    }
+    return "error: database error";
+}
+
+func login(username, password) {
+    let u = findUserByUsername(username);
+    if (u == null) {
+        return "error: invalid credentials";
+    }
+    if (u.password != password) {
+        return "error: invalid credentials";
+    }
+
+    // Generate JWT token
+    let token = generateToken(u.username);
+    
+    // Update token in database
+    let safeToken = escapeSql(token);
+    dbExec("UPDATE users SET token = '" + safeToken + "' WHERE id = " + string(u.id));
+    
+    return token;
+}
+
+func findUserByToken(token) {
+    let notFound = new User(); 
+    notFound = null;
+    if (token == "") { return notFound; }
+
+    let payload = JWT.verify(token, "secret123");
+    if (payload.startsWith("error")) {
+        return notFound;
+    }
+
+    // Extract username from payload
+    let parts = payload.split("\"");
+    let username = "";
+    if (parts.length >= 4) {
+        username = parts[3];
+    }
+    
+    return findUserByUsername(username);
+}
+
+func logout(token) {
+    let u = findUserByToken(token);
+    if (u != null) {
+        dbExec("UPDATE users SET token = '' WHERE id = " + string(u.id));
+    }
+}

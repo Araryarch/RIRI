@@ -1,0 +1,19 @@
+
+class ApiResponse {
+    status = "";
+    message = "";
+    data = ""; // JSON string for now, as we don't have Any type
+}
+
+func successResponse(dataJson, message) {
+    // Manual JSON construction for standard wrapper
+    // We assume dataJson is already a valid JSON string (object or array) or null
+    let d = "null";
+    if (dataJson != "") { d = dataJson; }
+    
+    return "{\"status\": \"success\", \"message\": \"" + message + "\", \"data\": " + d + "}";
+}
+
+func errorResponse(message) {
+    return "{\"status\": \"error\", \"message\": \"" + message + "\", \"data\": null}";
+}
