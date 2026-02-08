@@ -19,6 +19,7 @@ import {
     NewExpression,
     MemberExpression,
     ThisExpression,
+    AssignmentExpression,
     SwitchStatement,
     CaseClause,
     BreakStatement,

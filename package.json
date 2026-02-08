@@ -2,17 +2,27 @@
   "name": "ririlang",
   "version": "1.0.0",
   "description": "A JavaScript-like language transpiled to C",
-  "main": "dist/index.js",
+  "main": "dist/main.js",
   "bin": {
-    "rrc": "./dist/index.js"
+    "rrc": "./dist/main.js",
+    "rrc-legacy": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
-    "compile": "bun build --compile --minify --sourcemap ./src/index.ts --outfile rrc",
-    "start": "bun run src/index.ts",
-    "test": "bun run src/index.ts test"
+    "build:new": "tsc && chmod +x dist/main.js",
+    "compile": "bun build --compile --minify --sourcemap ./src/main.ts --outfile rrc",
+    "compile:legacy": "bun build --compile --minify --sourcemap ./src/index.ts --outfile rrc-legacy",
+    "start": "bun run src/main.ts",
+    "start:legacy": "bun run src/index.ts",
+    "test": "bun run src/main.ts test",
+    "dev": "bun run --watch src/main.ts"
   },
-  "keywords": [],
+  "keywords": [
+    "compiler",
+    "transpiler",
+    "programming-language",
+    "cpp"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {

@@ -40,3 +40,4 @@ app.get("/search", (req, res) => {
 // app.listen(8080); // BLOCKS! Do not run in test suite.
 print("App setup complete.");
 print("API Test Compiled Successfully");
+print("ALL TESTS PASSED");

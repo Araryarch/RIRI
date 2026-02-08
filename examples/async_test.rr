@@ -1,0 +1,18 @@
+// Test async/await with delay
+print("Test: Async/Await with delay");
+
+async fn delayedMessage() {
+    print("Starting delay...");
+    delay(1000); // 1 second delay
+    print("Delay finished!");
+    return "Done";
+}
+
+async fn main() {
+    print("Before async call");
+    let result = await delayedMessage();
+    print("Result:", result);
+    print("After async call");
+}
+
+main();

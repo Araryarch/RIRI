@@ -401,8 +401,14 @@ void print_val(const char* t) { std::cout << t; }
             case NodeType.ArrayLiteral:
                 return this.genArrayLiteral(expr as ArrayLiteral);
             case NodeType.AwaitExpression:
-                // For MVP: await is blocking, just generate the argument (which might be a fetch call)
-                return this.genExpression((expr as AwaitExpression).argument);
+                // Generate await for async operations
+                const awaitArg = this.genExpression((expr as AwaitExpression).argument);
+                // If it's a future/async task, use await_result
+                if (awaitArg.includes('async_task')) {
+                    return `await_result(${awaitArg})`;
+                }
+                // Otherwise just return the expression (blocking call)
+                return awaitArg;
             case NodeType.UnaryExpression:
                 return `(${(expr as any).operator}${this.genExpression((expr as any).argument)})`;
             case NodeType.ArrowFunctionExpression:
@@ -417,50 +423,30 @@ void print_val(const char* t) { std::cout << t; }
         // Capture by value [=] is safer for local vars (args).
         // For shared state, user must use Objects (classes) which are pointers.
 
-        const params = expr.params.map((p: any) => {
-            // HACK: If param is named 'req', type it as const httplib::Request&
-            // If param is named 'res', type it as httplib::Response&
-            if (p === "req") return "const httplib::Request& req";
-            if (p === "res") return "httplib::Response& res";
-            if (p === "next") return "std::function<void()> next"; // Middleware
-            return `auto ${p}`;
-        }).join(", ");
+        const params = expr.params
+            .filter((p: any) => p !== "next") // Remove 'next' - httplib doesn't support it
+            .map((p: any) => {
+                if (p === "req") return "const httplib::Request& req";
+                if (p === "res") return "httplib::Response& res";
+                return `auto ${p}`;
+            })
+            .join(", ");
 
         let body = "{\n";
-        for (const s of expr.body) {
-            body += this.genStatement(s);
+
+        // Check if body is an array of statements or a single expression
+        if (Array.isArray(expr.body)) {
+            for (const s of expr.body) {
+                body += this.genStatement(s);
+            }
+        } else {
+            // Single expression body - wrap in return statement
+            body += `return ${this.genExpression(expr.body)};\n`;
         }
-        // If it's a middleware (has next), we might need to handle return values.
-        // httplib expects HandlerResponse.
-        // But for MVP, let's assume void and we wrap it or httplib accepts void lambda?
-        // httplib::Server::Handler is (req, res). Returns void.
-        // httplib middleware returns HandlerResponse.
 
-        // If params include 'next', we are in middleware context.
-        // We need to return httplib::Server::HandlerResponse::Handled automatically?
-        // Or unhandled?
-        // Let's assume user calls next().
+        // If original params included 'next', this is middleware - return Unhandled
         if (expr.params.includes("next")) {
-            // Setup next() to be a dummy or mapped?
-            // Actually httplib PreRoutingHandler signature is:
-            // std::function<HandlerResponse(const Request &, Response &)>
-            // It does NOT take 'next'.
-            // It returns Handled (hijack) or Unhandled (continue).
-
-            // So 'next()' call in user code should map to 'return Unhandled'.
-            // If they send response, they should 'return Handled'.
-
-            // This is tricky to map 1:1 to Express 'next()'.
-            // Express: callback(req, res, next) -> void.
-            // Httplib: (req, res) -> HandlerResponse.
-
-            // We can generate wrapper code? NO, genArrowFunction is generic.
-            // We can check inside body if 'next' is called?
-
-            // Workaround:
-            // Generate: [=](const httplib::Request& req, httplib::Response& res) { ... return httplib::Server::HandlerResponse::Unhandled; }
-            // User code `next()` -> `// no-op or return Unhandled`.
-
+            body += "return httplib::Server::HandlerResponse::Unhandled;\n";
         }
 
         body += "}";
@@ -584,7 +570,6 @@ void print_val(const char* t) { std::cout << t; }
         }
 
         if (callee === "sort") {
-            // sort(arr) -> std::sort(arr.begin(), arr.end())
             const arg = this.genExpression(expr.args[0]);
             return `std::sort(${arg}.begin(), ${arg}.end())`;
         } else if (callee === "string") {
@@ -595,6 +580,10 @@ void print_val(const char* t) { std::cout << t; }
             return `std::stod(${arg})`;
         } else if (callee === "rand") {
             return `std::rand()`;
+        } else if (callee === "delay") {
+            // delay(milliseconds) - sleep for specified time
+            const arg = this.genExpression(expr.args[0]);
+            return `delay(${arg})`;
         }
 
         if (!expr.callee) {
@@ -612,7 +601,7 @@ void print_val(const char* t) { std::cout << t; }
                 return `${this.genExpression(member.object)}->listen("0.0.0.0", ${port})`;
             }
 
-            if (["get", "post", "put", "delete"].includes(method)) {
+            if (typeof method === 'string' && ["get", "post", "put", "delete"].includes(method)) {
                 // app.get("/", (req, res) => { ... })
                 // Only if 2 args and first is string? 
                 // Simple check: args.length == 2.
@@ -924,12 +913,33 @@ void print_val(const char* t) { std::cout << t; }
     private getBuiltinLibraries(): string {
         return `
 // --- Built-in Helpers ---
+
+// Async/Await support
+#include <thread>
+#include <chrono>
+#include <future>
+
+template<typename Func>
+auto async_task(Func&& func) {
+    return std::async(std::launch::async, std::forward<Func>(func));
+}
+
+void delay(int milliseconds) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+}
+
+template<typename T>
+T await_result(std::future<T>& future) {
+    return future.get();
+}
+
 // Helper to get from multimap (query)
 std::string _riri_get_query(const std::multimap<std::string, std::string>& m, std::string key) {
     auto it = m.find(key);
     if (it != m.end()) return it->second;
     return "";
 }
+
 // Helper to get from map (path params)
 std::string _riri_get_param(const std::unordered_map<std::string, std::string>& m, std::string key) {
     if (m.count(key)) return m.at(key);

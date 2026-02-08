@@ -62,7 +62,7 @@ export interface FunctionDeclaration extends Statement {
 
 export interface ReturnStatement extends Statement {
     kind: NodeType.ReturnStatement;
-    value: Expression;
+    value?: Expression; // Optional to support empty return
 }
 
 export interface ExpressionStatement extends Statement {
@@ -187,4 +187,11 @@ export interface UnaryExpression extends Expression {
     kind: NodeType.UnaryExpression;
     operator: string;
     argument: Expression;
+}
+
+export interface ArrowFunctionExpression extends Expression {
+    kind: NodeType.ArrowFunctionExpression;
+    params: string[];
+    body: Statement[] | Expression;
+    isExpression: boolean; // true if body is single expression
 }
